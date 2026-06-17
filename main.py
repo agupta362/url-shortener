@@ -2,6 +2,8 @@ import os
 import random
 import string
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from database import execute_query
@@ -17,6 +19,14 @@ from models import UserRegister, UserLogin, URLCreate, TokenRefresh
 security = HTTPBearer()
 
 app = FastAPI(title="URL Shortener API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def create_tables():
     execute_query("""
@@ -164,4 +174,4 @@ def redirect_url(short_code: str):
         "INSERT INTO clicks (url_id) VALUES (%s)",
         (row[0],)
     )
-    return {"redirect_to": row[1]}
+    return RedirectResponse(url=row[1], status_code=302)
