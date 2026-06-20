@@ -33,9 +33,17 @@ function App() {
     try {
       setUrls(await getUrls())
     } catch (err) {
-      setError(err.message)
+      handleSessionError(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  function handleSessionError(err) {
+    setError(err.message)
+    if (err.message === "Session expired. Please log in again.") {
+      setPage("login")
+      setUrls([])
     }
   }
 
@@ -74,7 +82,7 @@ function App() {
       setCustomCode("")
       await loadUrls()
     } catch (err) {
-      setError(err.message)
+      handleSessionError(err)
     }
   }
 
