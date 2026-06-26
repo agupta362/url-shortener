@@ -15,6 +15,7 @@ from auth import (
     verify_token
 )
 from models import UserRegister, UserLogin, URLCreate, TokenRefresh
+from database import get_redis
 
 security = HTTPBearer()
 
@@ -94,6 +95,9 @@ def register(user: UserRegister):
 
 @app.post("/login")
 def login(credentials: UserLogin):
+    rate_key = f"login_attempts:{credentials.email}"
+    check_rate_limit(rate_key, max_requests=5, window_seconds=60)
+    
     user = execute_query(
         "SELECT id, password FROM users WHERE email = %s",
         (credentials.email,),
@@ -135,7 +139,7 @@ def create_url(url: URLCreate, credentials: HTTPAuthorizationCredentials = Depen
     return {
         "message": "URL created",
         "short_code": short_code,
-        "short_url": f"http://localhost:8000/{short_code}"
+        "short_url": f"http://localhost:8002/{short_code}"
     }
 
 @app.get("/urls")
@@ -159,6 +163,17 @@ def get_my_urls(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 @app.get("/{short_code}")
 def redirect_url(short_code: str):
+    r = get_redis()
+    cache_key = f"url:{short_code}"
+    
+    cached_url = r.get(cache_key)
+    if cached_url:
+        try:
+            execute_query("UPDATE urls SET clicks = clicks + 1 WHERE short_code = %s", (short_code,))
+        except Exception:
+            pass
+        return RedirectResponse(url=cached_url)
+    
     row = execute_query(
         "SELECT id, original_url FROM urls WHERE short_code = %s",
         (short_code,),
@@ -166,12 +181,25 @@ def redirect_url(short_code: str):
     )
     if not row:
         raise HTTPException(status_code=404, detail="URL not found")
-    execute_query(
-        "UPDATE urls SET clicks = clicks + 1 WHERE id = %s",
-        (row[0],)
-    )
-    execute_query(
-        "INSERT INTO clicks (url_id) VALUES (%s)",
-        (row[0],)
-    )
-    return RedirectResponse(url=row[1], status_code=302)
+    
+    r.set(cache_key, row[1], ex=3600)
+    
+    try:
+        execute_query("UPDATE urls SET clicks = clicks + 1 WHERE id = %s", (row[0],))
+        execute_query("INSERT INTO clicks (url_id) VALUES (%s)", (row[0],))
+    except Exception:
+        pass
+    
+    return RedirectResponse(url=row[1])
+
+
+
+def check_rate_limit(key: str, max_requests: int, window_seconds: int):
+    r = get_redis()
+    current = r.get(key)
+    if current is None:
+        r.set(key, 1, ex=window_seconds)
+        return
+    if int(current) >= max_requests:
+        raise HTTPException(status_code=429, detail="Too many requests, please try again later")
+    r.incr(key)
