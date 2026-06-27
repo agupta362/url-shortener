@@ -1,135 +1,103 @@
-# URL Shortener API
+# URL Shortener
 
-A full-stack URL shortener with JWT authentication, click analytics, and a React frontend. Backend built with Python FastAPI and PostgreSQL, containerized with Docker, deployed on AWS EC2 with automated CI/CD via GitHub Actions.
+A URL shortener with real auth, caching, rate limiting, and click analytics behind it. You can register, shorten links, pick your own custom codes, and see how many times each link's been clicked. Redirects are cached so repeated clicks don't hit the database every time.
 
- The AWS EC2 instance for this project is not kept running continuously to stay within free tier limits. The IP address changes each time the instance is stopped and restarted. Follow the "Run Locally" section below to test the full application, or see "Deploy Your Own EC2 Instance" to host it yourself.
+> The AWS server isn't running 24/7 — I stop it between sessions to stay on the free tier, so the IP changes when I restart it. If the live link below is dead, just run it locally with the steps below, or set up your own EC2 instance using the guide at the bottom.
 
-## Features
+## What it does
 
-- User registration and login with JWT authentication (access + refresh tokens)
-- Passwords hashed with bcrypt, never stored in plain text
-- Create short URLs with optional custom codes
-- Click tracking with timestamps for analytics
-- Each user can only see and manage their own URLs
-- React frontend for registering, logging in, and managing links
-- Dockerized with Docker Compose
-- Automated deployment via GitHub Actions CI/CD
+- Register and log in with real auth — passwords are hashed with bcrypt, never stored as plain text. You get a short-lived access token and a longer refresh token so you're not logging in every 30 minutes
+- Login is rate limited through Redis — 5 wrong passwords in a minute and you're locked out for a bit
+- Shorten a link with a custom code or let it generate a random one
+- Every click gets logged with a timestamp, so there's real analytics, not just a counter
+- Redirects are cached in Redis for an hour, so a popular link isn't hitting Postgres on every single click
+- You only see your own links, nobody else's
+- Small React frontend on top instead of just the Swagger docs
+- Pushing to main auto-deploys the whole thing to AWS through GitHub Actions
 
-## Tech Stack
+## Stack
 
-Backend: Python, FastAPI, PostgreSQL, psycopg2, Passlib (bcrypt), python-jose (JWT)
-**Frontend:** React, Vite
-**Infrastructure:** Docker, Docker Compose, AWS EC2, GitHub Actions
+Python + FastAPI on the backend, PostgreSQL for the data, Redis for caching and rate limiting, bcrypt + python-jose for auth. React + Vite on the frontend. Docker Compose runs all of it together, deployed on an AWS EC2 instance with GitHub Actions handling the deploys.
 
-## API Routes
+## Routes
 
-| Method | Route | Auth Required | Description |
+| Method | Route | Needs auth? | What it does |
+|--------|-------|----------------|--------------|
+| POST | /register | No | Creates an account |
+| POST | /login | No | Logs you in, returns access + refresh tokens. Rate limited. |
+| POST | /refresh | No | Trade your refresh token for a new access token |
+| POST | /urls | Yes | Shorten a new URL |
+| GET | /urls | Yes | See your links |
+| GET | /{short_code} | No | The actual redirect. Pulls from Redis if cached, otherwise hits Postgres and caches it. |
 
-| POST | /register | No | Create a new account |
-| POST | /login | No | Log in, returns access + refresh tokens |
-| POST | /refresh | No | Get a new access token using refresh token |
-| POST | /urls | Yes | Create a new short URL |
-| GET | /urls | Yes | Get all URLs for the logged-in user |
-| GET | /{short_code} | No | Redirects to the original URL and logs the click |
+## How auth works
 
-## How Authentication Works
+On register, the password gets run through bcrypt and only the hash is saved. On login, I hash whatever was typed and compare it to the stored hash. If it matches, you get an access token good for 30 minutes and a refresh token good for 7 days. The access token goes on every request after that. Once it expires, the frontend uses the refresh token to quietly grab a new one in the background instead of forcing a re-login.
 
-1. User registers — password is hashed with bcrypt before being stored
-2. User logs in — server verifies the password hash and issues an access token (30 min) and a refresh token (7 days)
-3. Access token is sent in the `Authorization: Bearer <token>` header on every protected request
-4. When the access token expires, the refresh token is used to get a new one without logging in again
+## How rate limiting works
 
-## Run Locally
+Every login attempt gets tracked in Redis under a key tied to that email, like `login_attempts:someone@email.com`. Redis can expire keys on its own, so I set it to clear after 60 seconds and never have to clean it up manually. If an email hits 5 attempts inside that window, the next one gets a 429 before the password is even checked — so a bad actor can't make the server run the slow bcrypt comparison over and over either.
+
+## How caching works
+
+First click on a link, it gets looked up in Postgres, then dropped into Redis with a 1-hour expiry. Every click after that, for the next hour, skips Postgres entirely and reads straight from Redis. After the hour's up, the key clears itself and the next click starts the cycle again. Click counts still log in Postgres either way, so the analytics stay accurate regardless of caching.
+
+## Running it locally
 
 **Backend:**
 
-1. Clone the repo:
-   ```
-   git clone https://github.com/agupta362/url-shortener.git
-   cd url-shortener
-   ```
+```
+git clone https://github.com/agupta362/url-shortener.git
+cd url-shortener
+```
 
-2. Create a `.env` file in the root with:
-   ```
-   DB_HOST=db
-   DB_NAME=urlshortener
-   DB_USER=postgres
-   DB_PASSWORD=postgres123
-   SECRET_KEY=your_own_random_secret_key
-   ALGORITHM=HS256
-   ACCESS_TOKEN_EXPIRE_MINUTES=30
-   REFRESH_TOKEN_EXPIRE_DAYS=7
-   ```
+Create a `.env` file in the root:
+```
+DB_HOST=db
+DB_NAME=urlshortener
+DB_USER=postgres
+DB_PASSWORD=postgres123
+REDIS_HOST=redis
+SECRET_KEY=put_your_own_random_string_here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+```
 
-3. Start the backend:
-   ```
-   docker compose up --build
-   ```
+Then:
+```
+docker compose up --build
+```
 
-4. API docs available at: `http://localhost:8000/docs`
+That brings up the API, Postgres, and Redis together. Docs at `http://localhost:8000/docs`.
 
 **Frontend:**
 
-1. In a separate terminal:
-   ```
-   cd frontend
-   npm install
-   npm run dev
-   ```
+```
+cd frontend
+npm install
+npm run dev
+```
 
-2. Open `http://localhost:5173`
+Open `http://localhost:5173`, make an account, start shortening links.
 
-3. Register an account, log in, and start creating short links
+## How the deployment pipeline works
 
-## How GitHub Actions CI/CD Is Set Up
+Every push to main triggers a GitHub Actions workflow that SSHs into the AWS server using credentials stored as GitHub Secrets (`EC2_HOST`, `EC2_USER`, `EC2_KEY`), runs `git pull`, tears down the old containers, and rebuilds fresh. The live version updates itself on every push.
 
-Every push to the `main` branch automatically deploys to AWS through `.github/workflows/deploy.yml`:
+Since the EC2 instance gets stopped between sessions, the IP changes on restart, so the `EC2_HOST` secret needs updating whenever that happens. The real fix is an AWS Elastic IP, which keeps the address fixed for free as long as it's attached to a running instance.
 
-1. GitHub spins up a temporary runner
-2. It SSHs into the AWS EC2 server using credentials stored in GitHub Secrets (`EC2_HOST`, `EC2_USER`, `EC2_KEY`)
-3. On the server it runs:
-   ```
-   git pull
-   docker compose down
-   docker compose up -d --build
-   ```
-4. The live API is updated automatically with zero manual steps
+## Setting up your own EC2 instance
 
-**Important:** GitHub Secrets store the EC2 IP and SSH key. Since the EC2 instance is stopped between sessions to conserve free tier hours, the IP address changes on restart, and the `EC2_HOST` secret must be updated to the new IP for the pipeline to keep working. A permanent fix is attaching an AWS Elastic IP (free as long as it's associated with a running instance) so the address never changes.
-
-## Deploy Your Own EC2 Instance
-
-To host this yourself on AWS:
-
-1. Launch an EC2 instance (Ubuntu, t3.micro for free tier) with a key pair for SSH access
-2. In the instance's security group, add inbound rules allowing traffic on port 22 (SSH), 8000 (API)
-3. SSH into the instance:
-   ```
-   ssh -i "your-key.pem" ubuntu@YOUR_EC2_IP
-   ```
+1. Launch an EC2 instance (Ubuntu, t3.micro for free tier), download the key pair for SSH
+2. In the security group, open port 22 for SSH and port 8000 for the API. Redis doesn't need a public port — it only talks to the API inside Docker's internal network
+3. SSH in: `ssh -i "your-key.pem" ubuntu@YOUR_EC2_IP`
 4. Install Docker:
    ```
    sudo apt update
    sudo apt install docker.io docker-compose-v2 -y
    sudo usermod -aG docker ubuntu
    ```
-5. Clone this repo and create the `.env` file on the server (same contents as the local setup above):
-   ```
-   git clone https://github.com/agupta362/url-shortener.git
-   cd url-shortener
-   nano .env
-   ```
-6. Run it:
-   ```
-   docker compose up -d --build
-   ```
-7. To enable auto-deployment, add your EC2 IP, SSH username, and private key as GitHub Secrets (`EC2_HOST`, `EC2_USER`, `EC2_KEY`) in your forked repo's settings — every push to main will then deploy automatically.
-
-## What I Learned Building This
-
-- Designing and implementing JWT-based authentication from scratch, including access/refresh token rotation
-- Password security with bcrypt hashing
-- Building a normalized PostgreSQL schema with foreign key relationships across users, URLs, and click events
-- Containerizing a multi-service application with Docker Compose
-- Setting up a full CI/CD pipeline with GitHub Actions for automated deployment
-- Connecting a React frontend to a custom-built REST API
+5. Clone the repo and make the same `.env` file as above, on the server
+6. `docker compose up -d --build`
+7. For auto-deploy, add your own `EC2_HOST`, `EC2_USER`, and `EC2_KEY` as GitHub Secrets in your fork — pushes to main deploy automatically from there
