@@ -1,6 +1,6 @@
 output "public_ip" {
   value       = aws_instance.api_server.public_ip
-  description = "Public IP of the API server — use this to SSH in and update EC2_HOST secret"
+  description = "Public IP of the API server"
 }
 
 output "public_dns" {

@@ -60,12 +60,80 @@ resource "aws_security_group" "api_sg" {
   }
 }
 
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 resource "aws_instance" "api_server" {
-  ami                         = "ami-0490fddec0cbeb88b"
+  ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   vpc_security_group_ids      = [aws_security_group.api_sg.id]
   key_name                    = var.key_name
   associate_public_ip_address = true
+  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
+  user_data_replace_on_change = true
+
+  user_data = <<-EOF
+#!/bin/bash
+set -eux
+apt-get update -y
+apt-get install -y docker.io git awscli curl
+usermod -aG docker ubuntu
+systemctl enable docker
+systemctl start docker
+
+# Install Docker Compose v2 plugin (not in default apt repos on all AMIs)
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+PROJECT="${var.project_name}"
+REGION="${var.aws_region}"
+
+# Wait for IAM instance profile credentials before calling SSM
+until aws sts get-caller-identity --region "$REGION" &>/dev/null; do
+  sleep 5
+done
+
+DB_PASSWORD=$(aws ssm get-parameter --name "/$PROJECT/DB_PASSWORD" --with-decryption --region $REGION --query Parameter.Value --output text)
+SECRET_KEY=$(aws ssm get-parameter --name "/$PROJECT/SECRET_KEY" --with-decryption --region $REGION --query Parameter.Value --output text)
+DB_NAME=$(aws ssm get-parameter --name "/$PROJECT/DB_NAME" --region $REGION --query Parameter.Value --output text)
+DB_USER=$(aws ssm get-parameter --name "/$PROJECT/DB_USER" --region $REGION --query Parameter.Value --output text)
+ALGORITHM=$(aws ssm get-parameter --name "/$PROJECT/ALGORITHM" --region $REGION --query Parameter.Value --output text)
+ACCESS_TOKEN_EXPIRE_MINUTES=$(aws ssm get-parameter --name "/$PROJECT/ACCESS_TOKEN_EXPIRE_MINUTES" --region $REGION --query Parameter.Value --output text)
+REFRESH_TOKEN_EXPIRE_DAYS=$(aws ssm get-parameter --name "/$PROJECT/REFRESH_TOKEN_EXPIRE_DAYS" --region $REGION --query Parameter.Value --output text)
+
+cd /home/ubuntu
+git clone https://github.com/agupta362/url-shortener.git
+cd url-shortener
+
+cat > .env << ENVEOF
+DB_HOST=db
+DB_NAME=$DB_NAME
+DB_USER=$DB_USER
+DB_PASSWORD=$DB_PASSWORD
+REDIS_HOST=redis
+SECRET_KEY=$SECRET_KEY
+ALGORITHM=$ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
+REFRESH_TOKEN_EXPIRE_DAYS=$REFRESH_TOKEN_EXPIRE_DAYS
+ENVEOF
+
+chown ubuntu:ubuntu .env
+docker compose up -d --build
+  EOF
 
   tags = {
     Name    = "${var.project_name}-server"

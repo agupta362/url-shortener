@@ -20,3 +20,15 @@ variable "project_name" {
   type        = string
   default     = "url-shortener"
 }
+
+variable "db_password" {
+  description = "PostgreSQL database password"
+  type        = string
+  sensitive   = true
+}
+
+variable "secret_key" {
+  description = "JWT secret key"
+  type        = string
+  sensitive   = true
+}
