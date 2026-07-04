@@ -62,10 +62,10 @@ resource "aws_dynamodb_table" "terraform_locks" {
 
 output "bucket_name" {
   value       = aws_s3_bucket.terraform_state.bucket
-  description = "S3 bucket name for Terraform state"
+  description = "S3 bucket name for Terraform state for reference"
 }
 
 output "dynamodb_table" {
   value       = aws_dynamodb_table.terraform_locks.name
-  description = "DynamoDB table name for state locking"
+  description = "DynamoDB table name for state locking for refernece"
 }
