@@ -10,6 +10,8 @@ Live API (when server is running): http://<ec2-ip>:8002/docs or when running loc
 The AWS server isn't kept running 24/7 — I stop it between sessions to stay on the free tier. The Terraform setup means spinning it back up takes one command. See the Terraform section below.
 
 
+
+
 What It Does
 
 
@@ -102,7 +104,7 @@ An EC2 key pair created in AWS us-east-2. The name doesn't matter — just updat
 
 Why You Need the .pem File
 
-Terraform doesn't SSH into your server. The .pem file, your private key, nobody can SSH in, including you without it. The user_data or all the setup bash script runs automatically inside AWS at first boot, so Terraform doesn't need SSH access for that part, but you'll want the .pem if you ever need to get inside the server to debug.
+Terraform doesn't SSH into your server. The .pem file is your private key — without it, nobody can SSH in, including you. The boot script (user_data) runs automatically inside AWS at first boot, so Terraform doesn't need SSH access for that part, but you'll want the .pem if you ever need to get inside the server to debug.
 
 Folder Structure
 
@@ -116,7 +118,7 @@ bashcd terraform/bootstrap
 terraform init
 terraform apply
 
-This creates the S3 bucket and DynamoDB table that store and lock Terraform's state. You only ever run this once. Never run terraform destroy in bootstrap, these need to exist permanently to keep track of what terraform have done or for it too to understand.
+This creates the S3 bucket and DynamoDB table that store and lock Terraform's state. You only ever run this once. Never run terraform destroy in bootstrap — these need to exist permanently so Terraform can keep track of what it has created.
 
 Create Your tfvars File
 
@@ -129,7 +131,7 @@ project_name  = "url-shortener"
 db_password   = "your_db_password"
 secret_key    = "your_jwt_secret_key"
 
-This file is in .gitignore, so you have create your own and put the values.
+This file is in .gitignore — you have to create your own and put the values in.
 
 Deploy the Infrastructure
 
@@ -141,7 +143,7 @@ Terraform will:
 
 
 Find the latest Ubuntu 22.04 AMI automatically
-Create a security group with ports 22, 8000, 8001, 8002 open (i had other projects on 8000/8001 so i had these, you can only create it for 22, 8002)
+Create a security group with ports 22, 8000, 8001, 8002 open (I had other projects on 8000/8001 — you can adjust this to just 22 and 8002)
 Create an IAM role allowing the EC2 instance to read from SSM Parameter Store
 Store your secrets in SSM as encrypted SecureStrings
 Launch a t3.micro instance (free tier)
@@ -156,9 +158,7 @@ ssh_command  = "ssh -i ~/.ssh/your-key.pem ubuntu@x.x.x.x"
 
 Wait 2-3 minutes for the boot script to finish, then hit http://<public_ip>:8002/docs.
 
-Then update the frontend to point at the live server:
-
-Open frontend/src/api.js and change:
+Then update the frontend to point at the live server. Open frontend/src/api.js and change:
 
 javascriptconst API_URL = "http://<your-ec2-ip>:8002"
 
@@ -186,7 +186,7 @@ SecureString values are encrypted with AWS KMS. The EC2 instance reads them usin
 
 State Backend
 
-Terraform state lives in S3, encrypted at rest. DynamoDB prevents two people from running terraform apply at the same time by holding a lock for the duration of the operation. If a lock gets stuck after an interrupted apply, clear it with terraform force-unlock <lock-id>, the ID is shown in the error message.
+Terraform state lives in S3, encrypted at rest. DynamoDB prevents two people from running terraform apply at the same time by holding a lock for the duration of the operation. If a lock gets stuck after an interrupted apply, clear it with terraform force-unlock <lock-id> — the ID is shown in the error message.
 
 
 CI/CD
@@ -203,12 +203,12 @@ EC2_USER — ubuntu
 EC2_KEY — the full contents of your .pem file (open it in a text editor, copy everything including the header and footer lines)
 
 
-Since the EC2 IP changes every time you stop and restart the instance, update EC2_HOST after each restart. A permanent fix is an AWS Elastic IP, free as long as it's attached to a running instance.
+Since the EC2 IP changes every time you stop and restart the instance, update EC2_HOST after each restart. A permanent fix is an AWS Elastic IP — free as long as it's attached to a running instance.
 
 
 Problems I Ran Into and How I Fixed Them
 
-Wrong AMI ID — I hardcoded an AMI ID that turned out to be Amazon Linux 2023, not Ubuntu. SSH was failing because I was using ubuntu@ as the username when Amazon Linux uses ec2-user. Fixed by switching to a Terraform data source that automatically finds the latest Ubuntu 22.04 AMI, so it never goes stale and you always get the right OS.
+Wrong AMI ID — I hardcoded an AMI ID that turned out to be Amazon Linux 2023, not Ubuntu. SSH was failing because I was using ubuntu@ as the username when Amazon Linux uses ec2-user. Fixed by switching to a Terraform data source that automatically finds the latest Ubuntu 22.04 AMI — so it never goes stale and you always get the right OS.
 
 Circular backend dependency — If you put the S3 bucket and your actual infrastructure in the same Terraform config, terraform destroy deletes the bucket that stores the state file. Next terraform init fails because the backend is gone. Fixed by splitting into two configs: bootstrap/ creates the bucket and never gets destroyed, infra/ creates everything else and can be freely destroyed and recreated.
 
@@ -219,8 +219,6 @@ Race condition in boot script — The EC2 boot script was calling SSM before the
 
 What I Learned
 
-
 JWT auth — specifically why you'd have two tokens instead of one. The access token is short-lived so a stolen token expires quickly. The refresh token is long-lived but only ever used to get new access tokens, never for actual API requests. If someone intercepts an access token they have a 30-minute window. If they intercept a refresh token you can revoke it server-side. Two tokens, two different risk profiles.
 
-Terraform state — understanding that the state file is Terraform's memory of what it created, and that separating the bucket creation from the rest of the infrastructure is necessary because you can't use a backend that doesn't exist yet. The bootstrap/infra split after I ran into the problem, understood why it happened, and restructured accordingly.
-Contentstarting-point-repo-6e6129b0-main.zipzippdfpdf#10 DONE 3.2s
+Terraform state — understanding that the state file is Terraform's memory of what it created, and that separating the bucket creation from the rest of the infrastructure is necessary because you can't use a backend that doesn't exist yet. The bootstrap/infra split came after I ran into the problem, understood why it happened, and restructured accordingly.
