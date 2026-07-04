@@ -1,0 +1,6 @@
+aws_region    = "us-east-2"
+instance_type = "t3.micro"
+key_name      = "my-api-key"
+project_name  = "url-shortener"
+db_password   = "change-me"
+secret_key    = "change-me-to-a-long-random-string"

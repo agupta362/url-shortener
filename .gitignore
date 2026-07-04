@@ -1,9 +1,39 @@
+# Python
 __pycache__/
 *.pyc
 .env
+.venv/
+venv/
 
-# Terraform
-terraform/.terraform/
-terraform/.terraform.lock.hcl
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
+# Terraform (all modules: bootstrap/, infras/, legacy/)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Terraform secrets — use *.tfvars.example as the template
+*.tfvars
+!*.tfvars.example
+*.pem
+*.key
+
+# Node / frontend build
+node_modules/
+dist/
+dist-ssr/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.sw?
+
+# Legacy / local-only folders
+aws-terraform/
