@@ -1,103 +1,226 @@
-# URL Shortener
+URL Shortener
 
-A URL shortener with real auth, caching, rate limiting, and click analytics behind it. You can register, shorten links, pick your own custom codes, and see how many times each link's been clicked. Redirects are cached so repeated clicks don't hit the database every time.
+A full-stack URL shortener to learn on backend systems and DevOps. You can register, shorten links, pick custom codes, and see click analytics. The infrastructure is fully provisioned with Terraform so the whole thing can be torn down and recreated from scratch in a few minutes.
 
-> The AWS server isn't running 24/7 — I stop it between sessions to stay on the free tier, so the IP changes when I restart it. If the live link below is dead, just run it locally with the steps below, or set up your own EC2 instance using the guide at the bottom.
+Built over approximately 6 weeks learning backend and DevOps fundamentals.
 
-## What it does
+Live API (when server is running): http://<ec2-ip>:8002/docs or when running locally: http://localhost:8002/docs
 
-- Register and log in with real auth — passwords are hashed with bcrypt, never stored as plain text. You get a short-lived access token and a longer refresh token so you're not logging in every 30 minutes
-- Login is rate limited through Redis — 5 wrong passwords in a minute and you're locked out for a bit
-- Shorten a link with a custom code or let it generate a random one
-- Every click gets logged with a timestamp, so there's real analytics, not just a counter
-- Redirects are cached in Redis for an hour, so a popular link isn't hitting Postgres on every single click
-- You only see your own links, nobody else's
-- Small React frontend on top instead of just the Swagger docs
-- Pushing to main auto-deploys the whole thing to AWS through GitHub Actions
 
-## Stack
+The AWS server isn't kept running 24/7 — I stop it between sessions to stay on the free tier. The Terraform setup means spinning it back up takes one command. See the Terraform section below.
 
-Python + FastAPI on the backend, PostgreSQL for the data, Redis for caching and rate limiting, bcrypt + python-jose for auth. React + Vite on the frontend. Docker Compose runs all of it together, deployed on an AWS EC2 instance with GitHub Actions handling the deploys.
 
-## Routes
+What It Does
 
-| Method | Route | Needs auth? | What it does |
-|--------|-------|----------------|--------------|
-| POST | /register | No | Creates an account |
-| POST | /login | No | Logs you in, returns access + refresh tokens. Rate limited. |
-| POST | /refresh | No | Trade your refresh token for a new access token |
-| POST | /urls | Yes | Shorten a new URL |
-| GET | /urls | Yes | See your links |
-| GET | /{short_code} | No | The actual redirect. Pulls from Redis if cached, otherwise hits Postgres and caches it. |
 
-## How auth works
+Register and log in with real JWT auth — passwords are hashed with bcrypt before being stored, never plain text
+Get back an access token (30 min) and a refresh token (7 days) — the frontend silently refreshes your session without making you log in again
+Shorten any URL, pick your own custom code or let it generate a random 6-character one
+Every click is logged with a timestamp — real analytics, not just a counter
+Redirects are cached in Redis for 1 hour, so a popular link doesn't hammer Postgres on every single click
+Login is rate limited — 5 wrong attempts per email per 60 seconds and you get a 429. Stops brute-force password guessing before it even reaches the database.
+You only ever see your own links
 
-On register, the password gets run through bcrypt and only the hash is saved. On login, I hash whatever was typed and compare it to the stored hash. If it matches, you get an access token good for 30 minutes and a refresh token good for 7 days. The access token goes on every request after that. Once it expires, the frontend uses the refresh token to quietly grab a new one in the background instead of forcing a re-login.
 
-## How rate limiting works
 
-Every login attempt gets tracked in Redis under a key tied to that email, like `login_attempts:someone@email.com`. Redis can expire keys on its own, so I set it to clear after 60 seconds and never have to clean it up manually. If an email hits 5 attempts inside that window, the next one gets a 429 before the password is even checked — so a bad actor can't make the server run the slow bcrypt comparison over and over either.
+Stack
 
-## How caching works
+LayerTechBackendPython, FastAPIDatabasePostgreSQLCache / Rate LimitingRedisAuthbcrypt (passwords), python-jose (JWT)FrontendReact, ViteContainersDocker, Docker ComposeCloudAWS EC2Infrastructure as CodeTerraformSecretsAWS SSM Parameter StoreIAMAWS IAM Role (least privilege)State BackendAWS S3 + DynamoDB lockingCI/CDGitHub Actions
 
-First click on a link, it gets looked up in Postgres, then dropped into Redis with a 1-hour expiry. Every click after that, for the next hour, skips Postgres entirely and reads straight from Redis. After the hour's up, the key clears itself and the next click starts the cycle again. Click counts still log in Postgres either way, so the analytics stay accurate regardless of caching.
 
-## Running it locally
+API Routes
 
-**Backend:**
+MethodRouteAuthWhat it doesPOST/registerNoCreate accountPOST/loginNoLog in, returns access + refresh tokens. Rate limited via Redis.POST/refreshNoGet a new access token using your refresh tokenPOST/urlsYesCreate a short URLGET/urlsYesGet all your links with click countsGET/{short_code}NoRedirect. Served from Redis cache if available. Logs the click either way.
 
-```
-git clone https://github.com/agupta362/url-shortener.git
+
+How the Auth Works
+
+On register, the password goes through bcrypt, only the hash is stored. On login, I hash what was typed and compare it to the stored hash. If it matches, you get two tokens: a short-lived access token for API requests, and a longer refresh token the frontend uses to get a new access token silently when the first one expires. You never have to log in again until the refresh token itself expires after 7 days.
+
+How Rate Limiting Works
+
+Every login attempt is tracked in Redis under a key tied to that specific email — login_attempts:someone@email.com. Redis auto-expires the key after 60 seconds so there's no cleanup code anywhere. Hit 5 attempts in that window and the next request gets blocked with a 429 before the password is even checked, so bcrypt verification never runs on requests that should be rejected anyway.
+
+How Caching Works
+
+First click on a short link: look it up in Postgres, write the result to Redis with a 1-hour TTL. Every click after that inside that hour reads straight from Redis, no Postgres query. After the hour's up, Redis clears it automatically and the next click starts the cycle again. Click counts still log in Postgres on every request so analytics stay accurate.
+
+
+Run With Docker (local development)
+
+The easiest way to run this locally. Docker Compose brings up the API, Postgres, and Redis together.
+
+bashgit clone https://github.com/agupta362/url-shortener.git
 cd url-shortener
-```
 
-Create a `.env` file in the root:
-```
-DB_HOST=db
+Create a .env file in the root:
+
+envDB_HOST=db
 DB_NAME=urlshortener
 DB_USER=postgres
-DB_PASSWORD=postgres123
+DB_PASSWORD=yourpassword
 REDIS_HOST=redis
-SECRET_KEY=put_your_own_random_string_here
+SECRET_KEY=your_random_secret_key_here
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
-```
+
+Start the backend:
+
+bashdocker compose up --build
+
+API docs at http://localhost:8000/docs
+
+Then run the frontend (in a separate terminal):
+
+bashcd frontend
+
+Open frontend/src/api.js and make sure API_URL points to your local backend:
+
+javascriptconst API_URL = "http://localhost:8002"
 
 Then:
-```
-docker compose up --build
-```
 
-That brings up the API, Postgres, and Redis together. Docs at `http://localhost:8000/docs`.
-
-**Frontend:**
-
-```
-cd frontend
-npm install
+bashnpm install
 npm run dev
-```
 
-Open `http://localhost:5173`, make an account, start shortening links.
+Open http://localhost:5173, register an account, and start shortening links.
 
-## How the deployment pipeline works
 
-Every push to main triggers a GitHub Actions workflow that SSHs into the AWS server using credentials stored as GitHub Secrets (`EC2_HOST`, `EC2_USER`, `EC2_KEY`), runs `git pull`, tears down the old containers, and rebuilds fresh. The live version updates itself on every push.
+Deploy to AWS With Terraform
 
-Since the EC2 instance gets stopped between sessions, the IP changes on restart, so the `EC2_HOST` secret needs updating whenever that happens. The real fix is an AWS Elastic IP, which keeps the address fixed for free as long as it's attached to a running instance.
+Everything — EC2 instance, security group, IAM role, SSM parameters — is provisioned by Terraform. Tearing it down and recreating it takes a couple of minutes.
 
-## Setting up your own EC2 instance
+Prerequisites
 
-1. Launch an EC2 instance (Ubuntu, t3.micro for free tier), download the key pair for SSH
-2. In the security group, open port 22 for SSH and port 8000 for the API. Redis doesn't need a public port — it only talks to the API inside Docker's internal network
-3. SSH in: `ssh -i "your-key.pem" ubuntu@YOUR_EC2_IP`
-4. Install Docker:
-   ```
-   sudo apt update
-   sudo apt install docker.io docker-compose-v2 -y
-   sudo usermod -aG docker ubuntu
-   ```
-5. Clone the repo and make the same `.env` file as above, on the server
-6. `docker compose up -d --build`
-7. For auto-deploy, add your own `EC2_HOST`, `EC2_USER`, and `EC2_KEY` as GitHub Secrets in your fork — pushes to main deploy automatically from there
+
+AWS account (free tier is enough)
+Terraform installed (winget install --id Hashicorp.Terraform --exact on Windows, brew install terraform on Mac)
+AWS CLI configured: aws configure with your access key and secret
+An EC2 key pair created in AWS us-east-2. The name doesn't matter — just update key_name in terraform/infra/terraform.tfvars to match whatever you named it. Download the .pem file and keep it, you'll need it to SSH in.
+
+
+Why You Need the .pem File
+
+Terraform doesn't SSH into your server. The .pem file, your private key, nobody can SSH in, including you without it. The user_data or all the setup bash script runs automatically inside AWS at first boot, so Terraform doesn't need SSH access for that part, but you'll want the .pem if you ever need to get inside the server to debug.
+
+Folder Structure
+
+terraform/
+  bootstrap/   ← creates S3 state bucket + DynamoDB lock table (run once, never destroy)
+  infra/       ← creates EC2, security group, IAM role, SSM parameters (destroy/apply freely)
+
+First Time Setup (run bootstrap once)
+
+bashcd terraform/bootstrap
+terraform init
+terraform apply
+
+This creates the S3 bucket and DynamoDB table that store and lock Terraform's state. You only ever run this once. Never run terraform destroy in bootstrap, these need to exist permanently to keep track of what terraform have done or for it too to understand.
+
+Create Your tfvars File
+
+Before running infra, create terraform/infra/terraform.tfvars with your own values:
+
+hclaws_region    = "us-east-2"
+instance_type = "t3.micro"
+key_name      = "your-key-pair-name"
+project_name  = "url-shortener"
+db_password   = "your_db_password"
+secret_key    = "your_jwt_secret_key"
+
+This file is in .gitignore, so you have create your own and put the values.
+
+Deploy the Infrastructure
+
+bashcd terraform/infra
+terraform init
+terraform apply
+
+Terraform will:
+
+
+Find the latest Ubuntu 22.04 AMI automatically
+Create a security group with ports 22, 8000, 8001, 8002 open (i had other projects on 8000/8001 so i had these, you can only create it for 22, 8002)
+Create an IAM role allowing the EC2 instance to read from SSM Parameter Store
+Store your secrets in SSM as encrypted SecureStrings
+Launch a t3.micro instance (free tier)
+Run a boot script that installs Docker, fetches secrets from SSM, clones this repo, creates the .env file, and starts the app automatically
+
+
+When it finishes it prints:
+
+public_ip    = "x.x.x.x"
+public_dns   = "ec2-x-x-x-x.us-east-2.compute.amazonaws.com"
+ssh_command  = "ssh -i ~/.ssh/your-key.pem ubuntu@x.x.x.x"
+
+Wait 2-3 minutes for the boot script to finish, then hit http://<public_ip>:8002/docs.
+
+Then update the frontend to point at the live server:
+
+Open frontend/src/api.js and change:
+
+javascriptconst API_URL = "http://<your-ec2-ip>:8002"
+
+Run npm run dev and the frontend connects to the live AWS backend.
+
+Shut Down (stop free tier usage)
+
+bashcd terraform/infra
+terraform destroy
+
+Tears down EC2, security group, IAM role, and SSM parameters. The S3 bucket and DynamoDB table survive — they're managed by bootstrap, not infra.
+
+Start Again Next Time
+
+bashcd terraform/infra
+terraform apply
+
+Fresh instance, new IP, secrets fetched from SSM automatically, app running on boot. Update the frontend API_URL and the EC2_HOST GitHub secret with the new IP.
+
+What's Stored in SSM Parameter Store
+
+ParameterTypeWhat it is/url-shortener/DB_PASSWORDSecureString (encrypted)Postgres password/url-shortener/SECRET_KEYSecureString (encrypted)JWT signing key/url-shortener/DB_NAMEStringDatabase name/url-shortener/DB_USERStringDatabase user/url-shortener/ALGORITHMStringJWT algorithm/url-shortener/ACCESS_TOKEN_EXPIRE_MINUTESStringToken lifetime/url-shortener/REFRESH_TOKEN_EXPIRE_DAYSStringRefresh token lifetime
+
+SecureString values are encrypted with AWS KMS. The EC2 instance reads them using its IAM role — no credentials stored on the server anywhere.
+
+State Backend
+
+Terraform state lives in S3, encrypted at rest. DynamoDB prevents two people from running terraform apply at the same time by holding a lock for the duration of the operation. If a lock gets stuck after an interrupted apply, clear it with terraform force-unlock <lock-id>, the ID is shown in the error message.
+
+
+CI/CD
+
+Every push to main triggers GitHub Actions, which SSHs into the EC2 server and runs git pull → docker compose down → docker compose up -d --build. The live API updates automatically on every push.
+
+To set this up on your own fork:
+
+Go to your repo → Settings → Secrets and variables → Actions → add these three secrets:
+
+
+EC2_HOST — your EC2 public IP
+EC2_USER — ubuntu
+EC2_KEY — the full contents of your .pem file (open it in a text editor, copy everything including the header and footer lines)
+
+
+Since the EC2 IP changes every time you stop and restart the instance, update EC2_HOST after each restart. A permanent fix is an AWS Elastic IP, free as long as it's attached to a running instance.
+
+
+Problems I Ran Into and How I Fixed Them
+
+Wrong AMI ID — I hardcoded an AMI ID that turned out to be Amazon Linux 2023, not Ubuntu. SSH was failing because I was using ubuntu@ as the username when Amazon Linux uses ec2-user. Fixed by switching to a Terraform data source that automatically finds the latest Ubuntu 22.04 AMI, so it never goes stale and you always get the right OS.
+
+Circular backend dependency — If you put the S3 bucket and your actual infrastructure in the same Terraform config, terraform destroy deletes the bucket that stores the state file. Next terraform init fails because the backend is gone. Fixed by splitting into two configs: bootstrap/ creates the bucket and never gets destroyed, infra/ creates everything else and can be freely destroyed and recreated.
+
+State lock not releasing — An interrupted terraform apply left a stale lock in the DynamoDB table. Fixed with terraform force-unlock <lock-id>. The lock ID is shown in the error message when you try to run any Terraform command.
+
+Race condition in boot script — The EC2 boot script was calling SSM before the IAM role credentials were fully propagated to the instance. Fixed by adding a wait loop: until aws sts get-caller-identity; do sleep 5; done before any SSM calls.
+
+
+What I Learned
+
+
+JWT auth — specifically why you'd have two tokens instead of one. The access token is short-lived so a stolen token expires quickly. The refresh token is long-lived but only ever used to get new access tokens, never for actual API requests. If someone intercepts an access token they have a 30-minute window. If they intercept a refresh token you can revoke it server-side. Two tokens, two different risk profiles.
+
+Terraform state — understanding that the state file is Terraform's memory of what it created, and that separating the bucket creation from the rest of the infrastructure is necessary because you can't use a backend that doesn't exist yet. The bootstrap/infra split after I ran into the problem, understood why it happened, and restructured accordingly.
+Contentstarting-point-repo-6e6129b0-main.zipzippdfpdf#10 DONE 3.2s
