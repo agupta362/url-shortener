@@ -1,10 +1,12 @@
-FROM python:3.11-slim
-
+FROM python:3.11-slim AS builder
 WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
 
-COPY . .
-
-RUN pip install fastapi uvicorn psycopg2-binary python-dotenv "passlib[bcrypt]==1.7.4" "bcrypt==4.0.1" python-jose[cryptography] redis
+FROM python:3.11-slim
+WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+COPY main.py database.py auth.py models.py .
+ENV PATH=/root/.local/bin:$PATH
 EXPOSE 8000
-
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
