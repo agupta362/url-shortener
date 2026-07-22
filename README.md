@@ -122,6 +122,56 @@ Open `http://localhost:5173`, register an account, and start shortening links.
 
 ---
 
+## Run on Kubernetes (Minikube)
+
+Requires Minikube and kubectl installed locally.
+
+**Start the cluster:**
+```bash
+minikube start
+```
+
+**Point your terminal to Minikube's Docker daemon:**
+```bash
+& minikube -p minikube docker-env --shell powershell | Invoke-Expression
+```
+
+**Build the image inside Minikube:**
+```bash
+docker build -t url-shortener:v1 .
+```
+
+**Create the secret from your .env file:**
+```bash
+kubectl create secret generic app-secrets --from-env-file=.env
+```
+
+**Deploy everything:**
+```bash
+kubectl apply -f k8s/postgres.yaml
+kubectl apply -f k8s/redis.yaml
+kubectl apply -f k8s/api.yaml
+```
+
+**Check pods are running:**
+```bash
+kubectl get pods
+```
+
+**Access the API:**
+```bash
+minikube service api --url
+```
+
+Open the printed URL in your browser. Keep that terminal open.
+
+**What's running:**
+- 2 API replicas with auto-healing — if a pod crashes, Kubernetes replaces it automatically
+- Postgres and Redis on ClusterIP services — internal only, not exposed to the internet
+- Secrets injected from Kubernetes Secret — no credentials in any YAML file
+
+---
+
 ## Deploy to AWS With Terraform
 
 Everything — EC2 instance, security group, IAM role, SSM parameters — is provisioned by Terraform. Tearing it down and recreating it takes a couple of minutes.
