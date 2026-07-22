@@ -93,7 +93,7 @@ usermod -aG docker ubuntu
 systemctl enable docker
 systemctl start docker
 
-# Install Docker Compose v2 plugin (not in default apt repos on all AMIs)
+# Installing Docker Compose v2 plugin
 mkdir -p /usr/local/lib/docker/cli-plugins
 curl -fsSL "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64" \
   -o /usr/local/lib/docker/cli-plugins/docker-compose
@@ -102,7 +102,7 @@ chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 PROJECT="${var.project_name}"
 REGION="${var.aws_region}"
 
-# Wait for IAM instance profile credentials before calling SSM
+# Waitting for IAM instance profile credentials before calling SSM.
 until aws sts get-caller-identity --region "$REGION" &>/dev/null; do
   sleep 5
 done
