@@ -2,7 +2,7 @@
 
 A full-stack URL shortener to learn on backend systems and DevOps. You can register, shorten links, pick custom codes, and see click analytics. The infrastructure is fully provisioned with Terraform so the whole thing can be torn down and recreated from scratch in a few minutes.
 
-Built over approximately 6 weeks learning backend and DevOps fundamentals.
+Built while learning backend and DevOps fundamentals.
 
 **Live API (when server is running):** `http://<ec2-ip>:8002/docs` or when running locally: `http://localhost:8002/docs`
 
