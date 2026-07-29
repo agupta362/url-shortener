@@ -17,6 +17,7 @@ from auth import (
     verify_token
 )
 from models import UserRegister, UserLogin, URLCreate, TokenRefresh
+from prometheus_fastapi_instrumentator import Instrumentator
 
 
 class JSONFormatter(logging.Formatter):
@@ -51,10 +52,16 @@ logger.addHandler(handler)
 security = HTTPBearer()
 
 app = FastAPI(title="URL Shortener API")
+Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -216,10 +223,12 @@ def create_url(url: URLCreate, credentials: HTTPAuthorizationCredentials = Depen
         (user_id, url.original_url, short_code)
     )
     logger.info("URL created", extra={"short_code": short_code, "user_id": user_id})
+    public_base = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
+    short_url = f"{public_base}/api/{short_code}" if public_base else f"/api/{short_code}"
     return {
         "message": "URL created",
         "short_code": short_code,
-        "short_url": f"http://localhost:8002/{short_code}"
+        "short_url": short_url
     }
 
 

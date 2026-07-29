@@ -1,4 +1,6 @@
-const API_URL = "http://18.219.235.112:8002"
+// Relative /api = same host as the UI (Ingress or Nginx reverse proxy).
+// Optional override: VITE_API_URL for special cases.
+const API_URL = import.meta.env.VITE_API_URL || "/api"
 
 export function getToken() {
   return localStorage.getItem("access_token")

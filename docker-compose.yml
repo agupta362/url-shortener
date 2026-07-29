@@ -28,6 +28,21 @@ services:
       - redis
     env_file:
       - .env
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+    networks:
+      - backend-network
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
     networks:
       - backend-network
 
