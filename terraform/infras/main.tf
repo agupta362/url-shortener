@@ -20,23 +20,6 @@ resource "aws_security_group" "api_sg" {
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH"
-  }
-
-  ingress {
-    from_port   = 8000
-    to_port     = 8000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "API"
-  }
-
-  ingress {
-    from_port   = 8001
-    to_port     = 8001
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Job Tracker API"
   }
 
   ingress {
@@ -44,7 +27,13 @@ resource "aws_security_group" "api_sg" {
     to_port     = 8002
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "URL Shortener API"
+  }
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -84,6 +73,18 @@ resource "aws_instance" "api_server" {
   iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
   user_data_replace_on_change = true
 
+  
+  depends_on = [
+    aws_ssm_parameter.db_host,
+    aws_ssm_parameter.db_password,
+    aws_ssm_parameter.db_name,
+    aws_ssm_parameter.db_user,
+    aws_ssm_parameter.secret_key,
+    aws_ssm_parameter.algorithm,
+    aws_ssm_parameter.access_token_expire,
+    aws_ssm_parameter.refresh_token_expire,
+  ]
+
   user_data = <<-EOF
 #!/bin/bash
 set -eux
@@ -111,6 +112,7 @@ DB_PASSWORD=$(aws ssm get-parameter --name "/$PROJECT/DB_PASSWORD" --with-decryp
 SECRET_KEY=$(aws ssm get-parameter --name "/$PROJECT/SECRET_KEY" --with-decryption --region $REGION --query Parameter.Value --output text)
 DB_NAME=$(aws ssm get-parameter --name "/$PROJECT/DB_NAME" --region $REGION --query Parameter.Value --output text)
 DB_USER=$(aws ssm get-parameter --name "/$PROJECT/DB_USER" --region $REGION --query Parameter.Value --output text)
+DB_HOST=$(aws ssm get-parameter --name "/$PROJECT/DB_HOST" --region $REGION --query Parameter.Value --output text)
 ALGORITHM=$(aws ssm get-parameter --name "/$PROJECT/ALGORITHM" --region $REGION --query Parameter.Value --output text)
 ACCESS_TOKEN_EXPIRE_MINUTES=$(aws ssm get-parameter --name "/$PROJECT/ACCESS_TOKEN_EXPIRE_MINUTES" --region $REGION --query Parameter.Value --output text)
 REFRESH_TOKEN_EXPIRE_DAYS=$(aws ssm get-parameter --name "/$PROJECT/REFRESH_TOKEN_EXPIRE_DAYS" --region $REGION --query Parameter.Value --output text)
@@ -120,7 +122,7 @@ git clone https://github.com/agupta362/url-shortener.git
 cd url-shortener
 
 cat > .env << ENVEOF
-DB_HOST=db
+DB_HOST=$DB_HOST
 DB_NAME=$DB_NAME
 DB_USER=$DB_USER
 DB_PASSWORD=$DB_PASSWORD
@@ -132,7 +134,9 @@ REFRESH_TOKEN_EXPIRE_DAYS=$REFRESH_TOKEN_EXPIRE_DAYS
 ENVEOF
 
 chown ubuntu:ubuntu .env
-docker compose up -d --build
+# Redis + frontend
+docker compose up -d --build redis frontend
+docker compose up -d --build --no-deps api
   EOF
 
   tags = {

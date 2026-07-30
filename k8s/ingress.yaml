@@ -1,9 +1,10 @@
-# Ingress = production-style "front door" for HTTP traffic.
-# One host: UI at /  and API at /api  (browser uses relative /api — no rebuild for URLs).
-#
 # Requires: minikube addons enable ingress
+#
+# Same idea as frontend/nginx.conf:
+#   /api/*  → API (strip /api prefix)
+#   /gh     → API short-code redirect (no strip)
+#   /       → frontend SPA
 ---
-# API under /api  → strip the /api prefix so FastAPI still sees /register, /urls, etc.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -24,7 +25,25 @@ spec:
                 port:
                   number: 8000
 ---
-# Frontend at /
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: short-link-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /([A-Za-z0-9_-]+)$
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api
+                port:
+                  number: 8000
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

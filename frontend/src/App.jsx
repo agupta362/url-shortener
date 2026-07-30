@@ -77,7 +77,7 @@ function App() {
     setSuccess("")
     try {
       const result = await createUrl(longUrl, customCode)
-      setSuccess(`Short link: ${result.short_url}`)
+      setSuccess(`Short link: ${getShortLink(result.short_code)}`)
       setLongUrl("")
       setCustomCode("")
       await loadUrls()

@@ -24,7 +24,7 @@ export function clearToken() {
 }
 
 export function getShortLink(shortCode) {
-  return `${API_URL}/${shortCode}`
+  return `${window.location.origin}/${shortCode}`
 }
 
 async function refreshAccessToken() {

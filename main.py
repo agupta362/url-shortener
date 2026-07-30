@@ -224,7 +224,7 @@ def create_url(url: URLCreate, credentials: HTTPAuthorizationCredentials = Depen
     )
     logger.info("URL created", extra={"short_code": short_code, "user_id": user_id})
     public_base = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
-    short_url = f"{public_base}/api/{short_code}" if public_base else f"/api/{short_code}"
+    short_url = f"{public_base}/{short_code}" if public_base else f"/{short_code}"
     return {
         "message": "URL created",
         "short_code": short_code,

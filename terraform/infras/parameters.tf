@@ -39,3 +39,10 @@ resource "aws_ssm_parameter" "refresh_token_expire" {
   type  = "String"
   value = "7"
 }
+
+# RDS hostname for the API (DB_HOST). Created after the RDS instance exists.
+resource "aws_ssm_parameter" "db_host" {
+  name  = "/${var.project_name}/DB_HOST"
+  type  = "String"
+  value = aws_db_instance.postgres.address
+}
