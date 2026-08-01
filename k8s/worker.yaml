@@ -1,0 +1,27 @@
+# Analytics worker: SQS clicks → Postgres
+# Same image as API, different command.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: url-shortener:v8
+          imagePullPolicy: Never
+          command: ["python", "worker.py"]
+          envFrom:
+            - secretRef:
+                name: app-secrets
+            - configMapRef:
+                name: messaging-config

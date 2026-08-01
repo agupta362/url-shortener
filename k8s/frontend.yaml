@@ -1,6 +1,4 @@
-# Frontend on Kubernetes — same pattern as api.yaml
-# Deployment = keep N pods running
-# Service     = stable way to reach those pods
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -18,12 +16,11 @@ spec:
     spec:
       containers:
         - name: frontend
-          # Build + load into minikube first (see lesson notes)
-          image: url-shortener-frontend:v1
+          image: url-shortener-frontend:v2
           imagePullPolicy: Never
           ports:
             - containerPort: 80
-          # Nginx serves / — good enough as a basic health check
+        
           readinessProbe:
             httpGet:
               path: /

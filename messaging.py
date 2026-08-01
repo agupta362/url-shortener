@@ -111,8 +111,8 @@ def ensure_messaging_infra():
     if topic_arn and analytics_url and logger_url:
         return {
             "topic_arn": topic_arn,
-            "analytics_queue_url": analytics_url,
-            "logger_queue_url": logger_url,
+            "analytics_queue_url": _normalize_queue_url(analytics_url),
+            "logger_queue_url": _normalize_queue_url(logger_url),
         }
 
     sqs = get_sqs_client()
@@ -127,8 +127,8 @@ def ensure_messaging_infra():
 
     return {
         "topic_arn": topic_arn,
-        "analytics_queue_url": analytics_url,
-        "logger_queue_url": logger_url,
+        "analytics_queue_url": _normalize_queue_url(analytics_url),
+        "logger_queue_url": _normalize_queue_url(logger_url),
     }
 
 
@@ -137,9 +137,23 @@ def get_queue_url(sqs=None, name=None):
     name = name or _queue_name_analytics()
     explicit = os.getenv("SQS_CLICKS_QUEUE_URL") if name == _queue_name_analytics() else None
     if explicit:
-        return explicit
+        return _normalize_queue_url(explicit)
     url, _ = ensure_queue(name, sqs)
-    return url
+    return _normalize_queue_url(url)
+
+
+def _normalize_queue_url(url):
+    """Point LocalStack queue URLs at AWS_ENDPOINT_URL (k8s DNS: localstack:4566)."""
+    endpoint = os.getenv("AWS_ENDPOINT_URL", "").strip().rstrip("/")
+    if not endpoint or not url:
+        return url
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(url)
+    ep = urlparse(endpoint)
+    if not ep.netloc:
+        return url
+    return urlunparse((ep.scheme or "http", ep.netloc, parsed.path, "", "", ""))
 
 
 def parse_message_body(raw_body):

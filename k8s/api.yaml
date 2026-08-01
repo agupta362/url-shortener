@@ -14,13 +14,15 @@ spec:
     spec:
       containers:
         - name: api
-          image: url-shortener:v6
+          image: url-shortener:v8
           imagePullPolicy: Never
           ports:
             - containerPort: 8000
           envFrom:
             - secretRef:
                 name: app-secrets
+            - configMapRef:
+                name: messaging-config
           livenessProbe:
             httpGet:
               path: /health

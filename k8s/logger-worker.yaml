@@ -1,0 +1,24 @@
+# Logger worker: second SNS subscriber (fan-out demo).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logger-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logger-worker
+  template:
+    metadata:
+      labels:
+        app: logger-worker
+    spec:
+      containers:
+        - name: logger-worker
+          image: url-shortener:v8
+          imagePullPolicy: Never
+          command: ["python", "logger_worker.py"]
+          envFrom:
+            - configMapRef:
+                name: messaging-config

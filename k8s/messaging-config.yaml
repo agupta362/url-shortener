@@ -1,0 +1,14 @@
+# Shared messaging settings for api + workers (Minikube / LocalStack).
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: messaging-config
+data:
+  AWS_ACCESS_KEY_ID: "test"
+  AWS_SECRET_ACCESS_KEY: "test"
+  AWS_DEFAULT_REGION: "us-east-1"
+  AWS_ENDPOINT_URL: "http://localstack:4566"
+  SQS_CLICKS_QUEUE_NAME: "url-shortener-clicks"
+  SQS_CLICKS_LOG_QUEUE_NAME: "url-shortener-clicks-log"
+  SNS_CLICKS_TOPIC_NAME: "url-shortener-clicks"
