@@ -19,6 +19,17 @@ services:
     networks:
       - backend-network
 
+  # Fake AWS (SQS/SNS) — free local stand-in for real AWS messaging
+  localstack:
+    image: localstack/localstack:3
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: sqs,sns
+      DEFAULT_REGION: us-east-1
+    networks:
+      - backend-network
+
   api:
     build: .
     ports:
@@ -26,11 +37,59 @@ services:
     depends_on:
       - db
       - redis
+      - localstack
     env_file:
       - .env
     environment:
       DB_HOST: db
       REDIS_HOST: redis
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      SQS_CLICKS_QUEUE_NAME: url-shortener-clicks
+      SQS_CLICKS_LOG_QUEUE_NAME: url-shortener-clicks-log
+      SNS_CLICKS_TOPIC_NAME: url-shortener-clicks
+    networks:
+      - backend-network
+
+  # Same image as API, different command — pulls clicks from SQS → Postgres
+  worker:
+    build: .
+    command: ["python", "worker.py"]
+    depends_on:
+      - db
+      - localstack
+      - api
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      SQS_CLICKS_QUEUE_NAME: url-shortener-clicks
+      SQS_CLICKS_LOG_QUEUE_NAME: url-shortener-clicks-log
+      SNS_CLICKS_TOPIC_NAME: url-shortener-clicks
+    networks:
+      - backend-network
+
+  # Second SNS subscriber — proves fan-out (log only, no DB)
+  logger-worker:
+    build: .
+    command: ["python", "logger_worker.py"]
+    depends_on:
+      - localstack
+      - api
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      SQS_CLICKS_QUEUE_NAME: url-shortener-clicks
+      SQS_CLICKS_LOG_QUEUE_NAME: url-shortener-clicks-log
+      SNS_CLICKS_TOPIC_NAME: url-shortener-clicks
     networks:
       - backend-network
 

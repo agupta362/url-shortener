@@ -46,3 +46,21 @@ resource "aws_ssm_parameter" "db_host" {
   type  = "String"
   value = aws_db_instance.postgres.address
 }
+
+resource "aws_ssm_parameter" "sns_clicks_topic_arn" {
+  name  = "/${var.project_name}/SNS_CLICKS_TOPIC_ARN"
+  type  = "String"
+  value = aws_sns_topic.clicks.arn
+}
+
+resource "aws_ssm_parameter" "sqs_clicks_queue_url" {
+  name  = "/${var.project_name}/SQS_CLICKS_QUEUE_URL"
+  type  = "String"
+  value = aws_sqs_queue.clicks.url
+}
+
+resource "aws_ssm_parameter" "sqs_clicks_log_queue_url" {
+  name  = "/${var.project_name}/SQS_CLICKS_LOG_QUEUE_URL"
+  type  = "String"
+  value = aws_sqs_queue.clicks_log.url
+}

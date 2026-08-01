@@ -1,0 +1,32 @@
+# On EC2 we use real SNS/SQS (from Terraform) + the instance IAM role.
+# No LocalStack, no fake access keys, no AWS_ENDPOINT_URL.
+services:
+  localstack:
+    profiles: ["local-only"]
+
+  api:
+    depends_on:
+      - redis
+    environment:
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_ENDPOINT_URL: ""
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-2}
+
+  worker:
+    depends_on:
+      - api
+    environment:
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_ENDPOINT_URL: ""
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-2}
+
+  logger-worker:
+    depends_on:
+      - api
+    environment:
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_ENDPOINT_URL: ""
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-2}

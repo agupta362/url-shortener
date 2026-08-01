@@ -18,6 +18,7 @@ from auth import (
 )
 from models import UserRegister, UserLogin, URLCreate, TokenRefresh
 from prometheus_fastapi_instrumentator import Instrumentator
+from messaging import publish_click
 
 
 class JSONFormatter(logging.Formatter):
@@ -259,9 +260,9 @@ def redirect_url(short_code: str):
     cached_url = r.get(cache_key)
     if cached_url:
         try:
-            execute_query("UPDATE urls SET clicks = clicks + 1 WHERE short_code = %s", (short_code,))
+            publish_click(short_code)
         except Exception:
-            pass
+            logger.exception("Failed to enqueue click", extra={"short_code": short_code})
         logger.info("URL redirect (cache hit)", extra={"short_code": short_code})
         return RedirectResponse(url=cached_url)
     row = execute_query(
@@ -273,9 +274,8 @@ def redirect_url(short_code: str):
         raise HTTPException(status_code=404, detail="URL not found")
     r.set(cache_key, row[1], ex=3600)
     try:
-        execute_query("UPDATE urls SET clicks = clicks + 1 WHERE id = %s", (row[0],))
-        execute_query("INSERT INTO clicks (url_id) VALUES (%s)", (row[0],))
+        publish_click(short_code, url_id=row[0])
     except Exception:
-        pass
+        logger.exception("Failed to enqueue click", extra={"short_code": short_code})
     logger.info("URL redirect (cache miss)", extra={"short_code": short_code})
     return RedirectResponse(url=row[1])

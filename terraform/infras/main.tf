@@ -83,6 +83,9 @@ resource "aws_instance" "api_server" {
     aws_ssm_parameter.algorithm,
     aws_ssm_parameter.access_token_expire,
     aws_ssm_parameter.refresh_token_expire,
+    aws_ssm_parameter.sns_clicks_topic_arn,
+    aws_ssm_parameter.sqs_clicks_queue_url,
+    aws_ssm_parameter.sqs_clicks_log_queue_url,
   ]
 
   user_data = <<-EOF
@@ -116,6 +119,9 @@ DB_HOST=$(aws ssm get-parameter --name "/$PROJECT/DB_HOST" --region $REGION --qu
 ALGORITHM=$(aws ssm get-parameter --name "/$PROJECT/ALGORITHM" --region $REGION --query Parameter.Value --output text)
 ACCESS_TOKEN_EXPIRE_MINUTES=$(aws ssm get-parameter --name "/$PROJECT/ACCESS_TOKEN_EXPIRE_MINUTES" --region $REGION --query Parameter.Value --output text)
 REFRESH_TOKEN_EXPIRE_DAYS=$(aws ssm get-parameter --name "/$PROJECT/REFRESH_TOKEN_EXPIRE_DAYS" --region $REGION --query Parameter.Value --output text)
+SNS_CLICKS_TOPIC_ARN=$(aws ssm get-parameter --name "/$PROJECT/SNS_CLICKS_TOPIC_ARN" --region $REGION --query Parameter.Value --output text)
+SQS_CLICKS_QUEUE_URL=$(aws ssm get-parameter --name "/$PROJECT/SQS_CLICKS_QUEUE_URL" --region $REGION --query Parameter.Value --output text)
+SQS_CLICKS_LOG_QUEUE_URL=$(aws ssm get-parameter --name "/$PROJECT/SQS_CLICKS_LOG_QUEUE_URL" --region $REGION --query Parameter.Value --output text)
 
 cd /home/ubuntu
 git clone https://github.com/agupta362/url-shortener.git
@@ -131,12 +137,16 @@ SECRET_KEY=$SECRET_KEY
 ALGORITHM=$ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES=$ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS=$REFRESH_TOKEN_EXPIRE_DAYS
+AWS_DEFAULT_REGION=$REGION
+SNS_CLICKS_TOPIC_ARN=$SNS_CLICKS_TOPIC_ARN
+SQS_CLICKS_QUEUE_URL=$SQS_CLICKS_QUEUE_URL
+SQS_CLICKS_LOG_QUEUE_URL=$SQS_CLICKS_LOG_QUEUE_URL
 ENVEOF
 
 chown ubuntu:ubuntu .env
-# Redis + frontend
-docker compose up -d --build redis frontend
-docker compose up -d --build --no-deps api
+# Real AWS SNS/SQS via docker-compose.aws.yml (no LocalStack, no local Postgres)
+docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d --build redis frontend
+docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d --build --no-deps api worker logger-worker
   EOF
 
   tags = {

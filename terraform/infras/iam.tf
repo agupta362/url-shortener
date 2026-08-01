@@ -41,6 +41,26 @@ resource "aws_iam_role_policy" "ec2_ssm_policy" {
           "kms:Decrypt"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish"
+        ]
+        Resource = aws_sns_topic.clicks.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:GetQueueUrl"
+        ]
+        Resource = [
+          aws_sqs_queue.clicks.arn,
+          aws_sqs_queue.clicks_log.arn
+        ]
       }
     ]
   })
