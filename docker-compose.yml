@@ -35,7 +35,6 @@ services:
     ports:
       - "8002:8000"
     depends_on:
-      - db
       - redis
     env_file:
       - .env
@@ -57,7 +56,6 @@ services:
     build: .
     command: ["python", "worker.py"]
     depends_on:
-      - db
       - api
     env_file:
       - .env
