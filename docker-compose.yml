@@ -37,7 +37,6 @@ services:
     depends_on:
       - db
       - redis
-      - localstack
     env_file:
       - .env
     environment:
@@ -53,13 +52,12 @@ services:
     networks:
       - backend-network
 
-  # Same image as API, different command — pulls clicks from SQS → Postgres
+  # Same image as API, different command pulls clicks from SQS to Postgres
   worker:
     build: .
     command: ["python", "worker.py"]
     depends_on:
       - db
-      - localstack
       - api
     env_file:
       - .env
@@ -75,12 +73,11 @@ services:
     networks:
       - backend-network
 
-  # Second SNS subscriber — proves fan-out (log only, no DB)
+  # Second SNS subscriber
   logger-worker:
     build: .
     command: ["python", "logger_worker.py"]
     depends_on:
-      - localstack
       - api
     environment:
       AWS_ACCESS_KEY_ID: test
