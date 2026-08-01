@@ -126,6 +126,7 @@ SQS_CLICKS_LOG_QUEUE_URL=$(aws ssm get-parameter --name "/$PROJECT/SQS_CLICKS_LO
 cd /home/ubuntu
 git clone https://github.com/agupta362/url-shortener.git
 cd url-shortener
+chown -R ubuntu:ubuntu /home/ubuntu/url-shortener
 
 cat > .env << ENVEOF
 DB_HOST=$DB_HOST
