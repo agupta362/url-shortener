@@ -1,13 +1,16 @@
 # On EC2 we use real SNS/SQS (from Terraform) + the instance IAM role.
 # No LocalStack, no fake access keys.
-# Note: Compose merges depends_on as a set — do not list localstack
-# as a hard dependency in docker-compose.yml (see api/worker there).
+# DB_HOST comes from .env (RDS endpoint written by user_data).
 services:
   localstack:
     profiles: ["local-only"]
 
+  db:
+    profiles: ["local-only"]
+
   api:
     environment:
+      DB_HOST: ${DB_HOST}
       AWS_ACCESS_KEY_ID: ""
       AWS_SECRET_ACCESS_KEY: ""
       AWS_ENDPOINT_URL: ""
@@ -15,6 +18,7 @@ services:
 
   worker:
     environment:
+      DB_HOST: ${DB_HOST}
       AWS_ACCESS_KEY_ID: ""
       AWS_SECRET_ACCESS_KEY: ""
       AWS_ENDPOINT_URL: ""
