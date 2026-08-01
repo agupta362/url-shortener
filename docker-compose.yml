@@ -77,6 +77,8 @@ services:
     command: ["python", "logger_worker.py"]
     depends_on:
       - api
+    env_file:
+      - .env
     environment:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
