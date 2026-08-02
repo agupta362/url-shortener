@@ -298,14 +298,10 @@ Built as a learning project by [agupta362](https://github.com/agupta362).
 
 ## Screenshots
 
-Dashboard with short links and click counts:
+Dashboard with short links (clean paths like `/k8s`, not `/api/...`):
 
-![Dashboard](docs/screenshots/readme-04-dashboard-links.png)
+![Dashboard](docs/screenshots/eks-03-dashboard-links.png)
 
 API docs (Swagger):
 
 ![API docs](docs/screenshots/readme-05-api-docs.png)
-
-Same app running on Amazon EKS:
-
-![EKS dashboard](docs/screenshots/eks-03-dashboard-links.png)
