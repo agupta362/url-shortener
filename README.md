@@ -6,10 +6,6 @@ You can sign up, log in, create short links (random or custom codes), and track 
 
 I don't leave AWS running. When I need a demo I apply Terraform, then destroy it when I'm done.
 
-**Repo:** [github.com/agupta362/url-shortener](https://github.com/agupta362/url-shortener)
-
-**Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
-
 ## Features
 
 * Register and login with bcrypt password hashing and JWT access + refresh tokens
@@ -293,6 +289,10 @@ Through the frontend host, use `/api/...`. Nginx or Ingress strips the `/api` pr
 * I destroy AWS when I'm not demoing. Screenshots stay in the repo.
 * Don't commit `.env` or `*.tfvars` (they are gitignored).
 * `terraform/bootstrap` is meant to stay; `infras` and `eks` are meant to be disposable.
+
+**Repo:** [github.com/agupta362/url-shortener](https://github.com/agupta362/url-shortener)
+
+**Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
 
 Built as a learning project by [agupta362](https://github.com/agupta362).
 
