@@ -1,83 +1,151 @@
 # URL Shortener
 
-A full-stack URL shortener to learn on backend systems and DevOps. You can register, shorten links, pick custom codes, and see click analytics. The infrastructure is fully provisioned with Terraform so the whole thing can be torn down and recreated from scratch in a few minutes.
+A full-stack URL shortener I built while learning backend development and DevOps.
 
-Built while learning backend and DevOps fundamentals.
+You can sign up, log in, create short links (random or custom codes), and track click counts. It uses FastAPI, React, Postgres, Redis, Docker, Terraform, SNS/SQS workers, Kubernetes on Minikube, and a short Amazon EKS demo.
 
-**Live API (when server is running):** `http://<ec2-ip>:8002/docs` or when running locally: `http://localhost:8002/docs`
+I don't leave AWS running all the time. When I need a demo I apply Terraform, then destroy it when I'm done so it doesn't keep costing money.
 
-> The AWS server isn't kept running 24/7 — I stop it between sessions to stay on the free tier. The Terraform setup means spinning it back up takes one command. See the Terraform section below.
+**Repo:** [github.com/agupta362/url-shortener](https://github.com/agupta362/url-shortener)
 
----
+**Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
 
-## What It Does
+## Screenshots
 
-- Register and log in with real JWT auth — passwords are hashed with bcrypt before being stored, never plain text
-- Get back an access token (30 min) and a refresh token (7 days) — the frontend silently refreshes your session without making you log in again
-- Shorten any URL, pick your own custom code or let it generate a random 6-character one
-- Every click is logged with a timestamp — real analytics, not just a counter
-- Redirects are cached in Redis for 1 hour, so a popular link doesn't hammer Postgres on every single click
-- Login is rate limited — 5 wrong attempts per email per 60 seconds and you get a 429. Stops brute-force password guessing before it even reaches the database.
-- You only ever see your own links
+### App (local / EC2)
 
----
+| Login | Sign up |
+|-------|---------|
+| ![Login](docs/screenshots/readme-01-login.png) | ![Sign up](docs/screenshots/readme-02-signup.png) |
 
-## Stack
+| Empty dashboard | Links with click counts |
+|-----------------|-------------------------|
+| ![Empty dashboard](docs/screenshots/readme-03-dashboard-empty.png) | ![Dashboard with links](docs/screenshots/readme-04-dashboard-links.png) |
 
-| Layer | Tech |
-|-------|------|
+| API docs (Swagger) | Health check |
+|--------------------|--------------|
+| ![API docs](docs/screenshots/readme-05-api-docs.png) | ![Health](docs/screenshots/readme-06-health.png) |
+
+### Amazon EKS demo
+
+| Login | Sign up | Dashboard |
+|-------|---------|-----------|
+| ![EKS login](docs/screenshots/eks-01-login.png) | ![EKS signup](docs/screenshots/eks-02-signup.png) | ![EKS dashboard](docs/screenshots/eks-03-dashboard-links.png) |
+
+![EKS health](docs/screenshots/eks-04-health.png)
+
+## Features
+
+* Register and login with bcrypt password hashing and JWT access + refresh tokens
+* Create short URLs with a random code or your own custom code (like `/gh` or `/k8s`)
+* Click counts updated in the background through a message queue
+* Redis caches redirects so Postgres is not hit on every click
+* Redis also rate-limits login attempts
+* Frontend and API share one origin (`/api/...`), so the browser never hardcodes an API host
+
+## Tech stack
+
+| Area | Tools |
+|------|-------|
 | Backend | Python, FastAPI |
-| Database | PostgreSQL |
-| Cache / Rate Limiting | Redis |
-| Auth | bcrypt (passwords), python-jose (JWT) |
-| Frontend | React, Vite |
-| Containers | Docker, Docker Compose |
-| Cloud | AWS EC2 |
-| Infrastructure as Code | Terraform |
-| Secrets | AWS SSM Parameter Store |
-| IAM | AWS IAM Role (least privilege) |
-| State Backend | AWS S3 + DynamoDB locking |
-| CI/CD | GitHub Actions |
+| Frontend | React, Vite, Nginx |
+| Database / cache | PostgreSQL, Redis |
+| Auth | bcrypt, JWT |
+| Messaging | AWS SNS, SQS, LocalStack |
+| Containers | Docker, Docker Compose, multi-stage builds |
+| Kubernetes | Minikube, Amazon EKS |
+| AWS | EC2, RDS, ECR, SSM, IAM, Load Balancer |
+| Infrastructure as code | Terraform |
+| CI/CD | GitHub Actions (SSH deploy to EC2) |
+| Ops extras | `/health`, Prometheus `/metrics`, JSON logs, k8s probes |
 
----
+## Concepts and practices I learned on this project
 
-## API Routes
+* REST API design with FastAPI and OpenAPI/Swagger docs
+* Auth with hashed passwords, short-lived access tokens, and refresh tokens
+* Caching hot reads (redirects) and rate limiting with Redis
+* Async work with SNS fan-out into multiple SQS queues and background workers
+* Why you keep slow analytics off the redirect path
+* Docker multi-stage builds, Compose networking, and env-based config
+* LocalStack so you can practice SNS/SQS without paying for AWS every time
+* Terraform remote state (S3 + lock), separate stacks, and SSM for secrets
+* Deploying with GitHub Actions over SSH
+* Kubernetes basics: Deployments, Services, ConfigMaps, Secrets, Ingress, probes
+* Pushing images to ECR and running the same manifests on EKS
+* Destroying cloud resources after a demo to control cost
 
-| Method | Route | Auth | What it does |
-|--------|-------|------|--------------|
-| POST | `/register` | No | Create account |
-| POST | `/login` | No | Log in, returns access + refresh tokens. Rate limited via Redis. |
-| POST | `/refresh` | No | Get a new access token using your refresh token |
-| POST | `/urls` | Yes | Create a short URL |
-| GET | `/urls` | Yes | Get all your links with click counts |
-| GET | `/{short_code}` | No | Redirect. Served from Redis cache if available. Logs the click either way. |
+## How it works
 
----
+```text
+Browser  →  Frontend (Nginx)
+              ├─ /           → React app
+              ├─ /api/...    → FastAPI (register, login, create URL)
+              └─ /k8s        → FastAPI redirect
+                                ├─ lookup in Redis / Postgres
+                                ├─ publish click event to SNS
+                                └─ 307 redirect to original URL
 
-## How the Auth Works
+SNS fans out to:
+  ├─ SQS (analytics) → worker updates click count in Postgres
+  └─ SQS (logger)    → logger-worker writes a log line
+```
 
-On register, the password goes through bcrypt, only the hash is stored. On login, I hash what was typed and compare it to the stored hash. If it matches, you get two tokens: a short-lived access token for API requests, and a longer refresh token the frontend uses to get a new access token silently when the first one expires. You never have to log in again until the refresh token itself expires after 7 days.
+Redirect stays fast because the API only publishes a small message. Workers update the database later. Two queues mean analytics and logging each get their own copy of the event (fan-out).
 
-## How Rate Limiting Works
+| Environment | Messaging |
+|-------------|-----------|
+| Docker Compose / Minikube | LocalStack (fake SNS/SQS) |
+| EC2 (`terraform/infras`) | Real SNS/SQS + RDS, config from SSM |
+| EKS (`terraform/eks`) | Cluster + ECR + LoadBalancer; in-cluster Postgres/Redis/LocalStack for a short demo |
 
-Every login attempt is tracked in Redis under a key tied to that specific email — `login_attempts:someone@email.com`. Redis auto-expires the key after 60 seconds so there's no cleanup code anywhere. Hit 5 attempts in that window and the next request gets blocked with a 429 before the password is even checked, so bcrypt verification never runs on requests that should be rejected anyway.
+**Auth flow:** register stores a bcrypt hash → login checks the hash and returns access + refresh tokens → frontend sends the access token → on 401 it calls `/refresh` instead of forcing a full login again.
 
-## How Caching Works
+## How I built it (phases)
 
-First click on a short link: look it up in Postgres, write the result to Redis with a 1-hour TTL. Every click after that inside that hour reads straight from Redis, no Postgres query. After the hour's up, Redis clears it automatically and the next click starts the cycle again. Click counts still log in Postgres on every request so analytics stay accurate.
+I built this in steps over time, roughly in this order:
 
----
+1. FastAPI backend (register, login, create/list/redirect URLs)
+2. Simple React frontend
+3. First AWS deploy + GitHub Actions
+4. Redis for caching and login rate limiting
+5. Terraform for EC2, IAM, SSM, and remote state
+6. Better Docker setup (multi-stage builds, networks, volumes)
+7. Kubernetes on Minikube (manifests, probes, JSON logging)
+8. Frontend container + `/api` reverse proxy routing
+9. RDS and clean short links (`/gh` instead of `/api/gh`)
+10. SNS/SQS click tracking (LocalStack, then real AWS)
+11. Workers + LocalStack on Minikube
+12. EKS demo (cluster, ECR, LoadBalancer), then destroy
 
-## Run With Docker (local development)
+Bigger checkpoints are tagged as **v0.2** (RDS + clean URLs), **v0.3** (messaging), and **v0.4** (EKS).
 
-The easiest way to run this locally. Docker Compose brings up the API, Postgres, and Redis together.
+## Project layout
+
+```text
+.
+├── main.py, database.py, auth.py, models.py   # FastAPI app
+├── messaging.py, worker.py, logger_worker.py  # SNS/SQS produce + consume
+├── Dockerfile, docker-compose.yml             # Local full stack
+├── docker-compose.aws.yml                     # EC2: real AWS, no LocalStack
+├── frontend/                                  # React + Nginx prod image
+├── k8s/                                       # Minikube (+ EKS LB overlay)
+├── terraform/
+│   ├── bootstrap/                             # S3 state + lock (run once)
+│   ├── infras/                                # EC2 + RDS + SNS/SQS
+│   └── eks/                                   # EKS + ECR (separate state)
+└── docs/screenshots/
+```
+
+## Run locally (Docker Compose)
+
+Needs Docker Desktop.
 
 ```bash
 git clone https://github.com/agupta362/url-shortener.git
 cd url-shortener
 ```
 
-Create a `.env` file in the root:
+Create a `.env` in the project root:
 
 ```env
 DB_HOST=db
@@ -85,117 +153,85 @@ DB_NAME=urlshortener
 DB_USER=postgres
 DB_PASSWORD=yourpassword
 REDIS_HOST=redis
-SECRET_KEY=your_random_secret_key_here
+SECRET_KEY=change-me-to-a-long-random-string
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
 ```
 
-Start the backend:
+Start everything (API, Postgres, Redis, LocalStack, workers, frontend):
 
 ```bash
 docker compose up --build
 ```
 
-API docs at `http://localhost:8000/docs`
+| What | URL |
+|------|-----|
+| Frontend | http://localhost:8080 |
+| API | http://localhost:8002 |
+| Swagger docs | http://localhost:8002/docs |
+| Health | http://localhost:8002/health |
 
-**Then run the frontend** (in a separate terminal):
+Watch the workers:
+
+```bash
+docker compose logs worker logger-worker -f
+```
+
+Create a link in the UI, open the short URL, and both workers should log the same click.
+
+### Frontend only (dev mode)
+
+If the API is already running on port 8002:
 
 ```bash
 cd frontend
-```
-
-Open `frontend/src/api.js` and make sure `API_URL` points to your local backend:
-
-```javascript
-const API_URL = "http://localhost:8002"
-```
-
-Then:
-
-```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`, register an account, and start shortening links.
+Vite proxies `/api` to `http://localhost:8002` (see `frontend/vite.config.js`).
 
----
+## Run on Minikube
 
-## Run on Kubernetes (Minikube)
-
-Requires Minikube and kubectl installed locally.
-
-**Start the cluster:**
 ```bash
 minikube start
+minikube addons enable ingress
 ```
 
-**Point your terminal to Minikube's Docker daemon:**
+Build and load images:
+
 ```bash
-& minikube -p minikube docker-env --shell powershell | Invoke-Expression
+docker build -t url-shortener:v8 .
+docker build -t url-shortener-frontend:v3 ./frontend
+minikube image load url-shortener:v8
+minikube image load url-shortener-frontend:v3
 ```
 
-**Build the image inside Minikube:**
-```bash
-docker build -t url-shortener:v1 .
-```
+Create the secret and apply manifests (set `DB_HOST=postgres` in `.env` for the k8s Service name):
 
-**Create the secret from your .env file:**
 ```bash
 kubectl create secret generic app-secrets --from-env-file=.env
-```
-
-**Deploy everything:**
-```bash
-kubectl apply -f k8s/postgres.yaml
-kubectl apply -f k8s/redis.yaml
-kubectl apply -f k8s/api.yaml
-```
-
-**Check pods are running:**
-```bash
+kubectl apply -f k8s/postgres.yaml -f k8s/redis.yaml -f k8s/localstack.yaml
+kubectl apply -f k8s/messaging-config.yaml
+kubectl apply -f k8s/api.yaml -f k8s/worker.yaml -f k8s/logger-worker.yaml
+kubectl apply -f k8s/frontend.yaml -f k8s/ingress.yaml
 kubectl get pods
 ```
 
-**Access the API:**
+Port-forward the API (useful if 8080 is already used by Compose):
+
 ```bash
-minikube service api --url
+kubectl port-forward svc/api 18002:8000
 ```
 
-Open the printed URL in your browser. Keep that terminal open.
+Then open http://127.0.0.1:18002/docs. You can also use Ingress with `minikube tunnel`.
 
-**What's running:**
-- 2 API replicas with auto-healing — if a pod crashes, Kubernetes replaces it automatically
-- Postgres and Redis on ClusterIP services — internal only, not exposed to the internet
-- Secrets injected from Kubernetes Secret — no credentials in any YAML file
+## Deploy on AWS (EC2 + RDS + SNS/SQS)
 
----
+Stack under `terraform/infras`: EC2 runs Docker Compose, RDS is Postgres, SNS/SQS handle clicks, secrets live in SSM, Terraform state lives in S3.
 
-## Deploy to AWS With Terraform
-
-Everything — EC2 instance, security group, IAM role, SSM parameters — is provisioned by Terraform. Tearing it down and recreating it takes a couple of minutes.
-
-### Prerequisites
-
-- AWS account (free tier is enough)
-- Terraform installed (`winget install --id Hashicorp.Terraform --exact` on Windows, `brew install terraform` on Mac)
-- AWS CLI configured: `aws configure` with your access key and secret
-- An EC2 key pair created in AWS us-east-2. The name doesn't matter — just update `key_name` in `terraform/infra/terraform.tfvars` to match whatever you named it. Download the `.pem` file and keep it, you'll need it to SSH in.
-
-### Why You Need the .pem File
-
-Terraform doesn't SSH into your server. The `.pem` file is your private key — without it, nobody can SSH in, including you. The boot script (user_data) runs automatically inside AWS at first boot, so Terraform doesn't need SSH access for that part, but you'll want the `.pem` if you ever need to get inside the server to debug.
-
-### Folder Structure
-
-```
-terraform/
-  bootstrap/   ← creates S3 state bucket + DynamoDB lock table (run once, never destroy)
-  infra/       ← creates EC2, security group, IAM role, SSM parameters (destroy/apply freely)
-```
-
-### First Time Setup (run bootstrap once)
+### One-time bootstrap
 
 ```bash
 cd terraform/bootstrap
@@ -203,126 +239,83 @@ terraform init
 terraform apply
 ```
 
-This creates the S3 bucket and DynamoDB table that store and lock Terraform's state. You only ever run this once. Never run `terraform destroy` in bootstrap — these need to exist permanently so Terraform can keep track of what it has created.
+Leave bootstrap alone unless you really mean to delete the state bucket and lock table.
 
-### Create Your tfvars File
+### App infra
 
-Before running infra, create `terraform/infra/terraform.tfvars` with your own values:
-
-```hcl
-aws_region    = "us-east-2"
-instance_type = "t3.micro"
-key_name      = "your-key-pair-name"
-project_name  = "url-shortener"
-db_password   = "your_db_password"
-secret_key    = "your_jwt_secret_key"
-```
-
-This file is in `.gitignore` — you have to create your own and put the values in.
-
-### Deploy the Infrastructure
+1. Copy `terraform/infras/terraform.tfvars.example` to `terraform.tfvars`
+2. Set your EC2 `key_name` in `us-east-2`, plus DB password and JWT secret
+3. Apply:
 
 ```bash
-cd terraform/infra
+cd terraform/infras
+terraform init
+terraform plan
+terraform apply
+```
+
+Outputs include `public_ip` and `rds_endpoint`.
+
+* Frontend: `http://<public_ip>:8080`
+* API: `http://<public_ip>:8002`
+* Docs: `http://<public_ip>:8002/docs`
+
+On boot, EC2 pulls SSM params, clones the repo, and starts Compose with `docker-compose.aws.yml` (real AWS messaging, no LocalStack, RDS as `DB_HOST`).
+
+When you are done:
+
+```bash
+terraform destroy
+```
+
+### CI/CD
+
+Push to `main` runs `.github/workflows/deploy.yml`. It SSHs into EC2, runs `git pull`, then `docker compose up --build`. Needs GitHub secrets: `EC2_HOST`, `EC2_USER`, `EC2_KEY`.
+
+## Deploy on AWS (EKS)
+
+Separate Terraform state under `terraform/eks`, so you can destroy EKS without touching the EC2/RDS stack.
+
+```bash
+cd terraform/eks
 terraform init
 terraform apply
 ```
 
-Terraform will:
+Then roughly:
 
-1. Find the latest Ubuntu 22.04 AMI automatically
-2. Create a security group with ports 22, 8000, 8001, 8002 open (I had other projects on 8000/8001 — you can adjust this to just 22 and 8002)
-3. Create an IAM role allowing the EC2 instance to read from SSM Parameter Store
-4. Store your secrets in SSM as encrypted SecureStrings
-5. Launch a t3.micro instance (free tier)
-6. Run a boot script that installs Docker, fetches secrets from SSM, clones this repo, creates the `.env` file, and starts the app automatically
+1. `aws eks update-kubeconfig --region us-east-2 --name url-shortener-eks`
+2. Build and push images to the ECR URLs from Terraform outputs
+3. Create `app-secrets`, apply `k8s/*.yaml`, point images at ECR, apply `k8s/eks-frontend-lb.yaml`
+4. Open the LoadBalancer hostname from `kubectl get svc frontend`
 
-When it finishes it prints:
-
-```
-public_ip    = "x.x.x.x"
-public_dns   = "ec2-x-x-x-x.us-east-2.compute.amazonaws.com"
-ssh_command  = "ssh -i ~/.ssh/your-key.pem ubuntu@x.x.x.x"
-```
-
-Wait 2-3 minutes for the boot script to finish, then hit `http://<public_ip>:8002/docs`.
-
-**Then update the frontend** to point at the live server. Open `frontend/src/api.js` and change:
-
-```javascript
-const API_URL = "http://<your-ec2-ip>:8002"
-```
-
-Run `npm run dev` and the frontend connects to the live AWS backend.
-
-### Shut Down (stop free tier usage)
+Destroy when the demo is over (the control plane alone is about $0.10/hour):
 
 ```bash
-cd terraform/infra
+cd terraform/eks
 terraform destroy
 ```
 
-Tears down EC2, security group, IAM role, and SSM parameters. The S3 bucket and DynamoDB table survive — they're managed by bootstrap, not infra.
+## API overview
 
-### Start Again Next Time
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/register` | No | Create account |
+| POST | `/login` | No | Get tokens (rate limited) |
+| POST | `/refresh` | No | New access token |
+| POST | `/urls` | Yes | Create short URL |
+| GET | `/urls` | Yes | List your URLs and clicks |
+| GET | `/{short_code}` | No | Redirect and enqueue click |
+| GET | `/health` | No | App / DB / Redis status |
+| GET | `/metrics` | No | Prometheus metrics |
+| GET | `/docs` | No | Swagger UI |
 
-```bash
-cd terraform/infra
-terraform apply
-```
+Through the frontend host, use `/api/...`. Nginx or Ingress strips the `/api` prefix before FastAPI sees the request.
 
-Fresh instance, new IP, secrets fetched from SSM automatically, app running on boot. Update the frontend `API_URL` and the `EC2_HOST` GitHub secret with the new IP.
+## Notes
 
-### What's Stored in SSM Parameter Store
+* I destroy AWS when I'm not demoing. Screenshots stay in the repo.
+* Don't commit `.env` or `*.tfvars` (they are gitignored).
+* `terraform/bootstrap` is meant to stay; `infras` and `eks` are meant to be disposable.
 
-| Parameter | Type | What it is |
-|-----------|------|------------|
-| `/url-shortener/DB_PASSWORD` | SecureString (encrypted) | Postgres password |
-| `/url-shortener/SECRET_KEY` | SecureString (encrypted) | JWT signing key |
-| `/url-shortener/DB_NAME` | String | Database name |
-| `/url-shortener/DB_USER` | String | Database user |
-| `/url-shortener/ALGORITHM` | String | JWT algorithm |
-| `/url-shortener/ACCESS_TOKEN_EXPIRE_MINUTES` | String | Token lifetime |
-| `/url-shortener/REFRESH_TOKEN_EXPIRE_DAYS` | String | Refresh token lifetime |
-
-SecureString values are encrypted with AWS KMS. The EC2 instance reads them using its IAM role — no credentials stored on the server anywhere.
-
-### State Backend
-
-Terraform state lives in S3, encrypted at rest. DynamoDB prevents two people from running `terraform apply` at the same time by holding a lock for the duration of the operation. If a lock gets stuck after an interrupted apply, clear it with `terraform force-unlock <lock-id>` — the ID is shown in the error message.
-
----
-
-## CI/CD
-
-Every push to `main` triggers GitHub Actions, which SSHs into the EC2 server and runs `git pull → docker compose down → docker compose up -d --build`. The live API updates automatically on every push.
-
-**To set this up on your own fork:**
-
-Go to your repo → Settings → Secrets and variables → Actions → add these three secrets:
-
-- `EC2_HOST` — your EC2 public IP
-- `EC2_USER` — `ubuntu`
-- `EC2_KEY` — the full contents of your `.pem` file (open it in a text editor, copy everything including the header and footer lines)
-
-Since the EC2 IP changes every time you stop and restart the instance, update `EC2_HOST` after each restart. A permanent fix is an AWS Elastic IP — free as long as it's attached to a running instance.
-
----
-
-## Problems I Ran Into and How I Fixed Them
-
-**Wrong AMI ID** — I hardcoded an AMI ID that turned out to be Amazon Linux 2023, not Ubuntu. SSH was failing because I was using `ubuntu@` as the username when Amazon Linux uses `ec2-user`. Fixed by switching to a Terraform `data` source that automatically finds the latest Ubuntu 22.04 AMI — so it never goes stale and you always get the right OS.
-
-**Circular backend dependency** — If you put the S3 bucket and your actual infrastructure in the same Terraform config, `terraform destroy` deletes the bucket that stores the state file. Next `terraform init` fails because the backend is gone. Fixed by splitting into two configs: `bootstrap/` creates the bucket and never gets destroyed, `infra/` creates everything else and can be freely destroyed and recreated.
-
-**State lock not releasing** — An interrupted `terraform apply` left a stale lock in the DynamoDB table. Fixed with `terraform force-unlock <lock-id>`. The lock ID is shown in the error message when you try to run any Terraform command.
-
-**Race condition in boot script** — The EC2 boot script was calling SSM before the IAM role credentials were fully propagated to the instance. Fixed by adding a wait loop: `until aws sts get-caller-identity; do sleep 5; done` before any SSM calls.
-
----
-
-## What I Learned
-
-**JWT auth** — specifically why you'd have two tokens instead of one. The access token is short-lived so a stolen token expires quickly. The refresh token is long-lived but only ever used to get new access tokens, never for actual API requests. If someone intercepts an access token they have a 30-minute window. If they intercept a refresh token you can revoke it server-side. Two tokens, two different risk profiles.
-
-**Terraform state** — understanding that the state file is Terraform's memory of what it created, and that separating the bucket creation from the rest of the infrastructure is necessary because you can't use a backend that doesn't exist yet. The bootstrap/infra split came after I ran into the problem, understood why it happened, and restructured accordingly.
+Built as a learning project by [agupta362](https://github.com/agupta362).
