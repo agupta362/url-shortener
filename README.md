@@ -10,30 +10,6 @@ I don't leave AWS running all the time. When I need a demo I apply Terraform, th
 
 **Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
 
-## Screenshots
-
-### App (local / EC2)
-
-| Login | Sign up |
-|-------|---------|
-| ![Login](docs/screenshots/readme-01-login.png) | ![Sign up](docs/screenshots/readme-02-signup.png) |
-
-| Empty dashboard | Links with click counts |
-|-----------------|-------------------------|
-| ![Empty dashboard](docs/screenshots/readme-03-dashboard-empty.png) | ![Dashboard with links](docs/screenshots/readme-04-dashboard-links.png) |
-
-| API docs (Swagger) | Health check |
-|--------------------|--------------|
-| ![API docs](docs/screenshots/readme-05-api-docs.png) | ![Health](docs/screenshots/readme-06-health.png) |
-
-### Amazon EKS demo
-
-| Login | Sign up | Dashboard |
-|-------|---------|-----------|
-| ![EKS login](docs/screenshots/eks-01-login.png) | ![EKS signup](docs/screenshots/eks-02-signup.png) | ![EKS dashboard](docs/screenshots/eks-03-dashboard-links.png) |
-
-![EKS health](docs/screenshots/eks-04-health.png)
-
 ## Features
 
 * Register and login with bcrypt password hashing and JWT access + refresh tokens
@@ -319,3 +295,17 @@ Through the frontend host, use `/api/...`. Nginx or Ingress strips the `/api` pr
 * `terraform/bootstrap` is meant to stay; `infras` and `eks` are meant to be disposable.
 
 Built as a learning project by [agupta362](https://github.com/agupta362).
+
+## Screenshots
+
+Dashboard with short links and click counts:
+
+![Dashboard](docs/screenshots/readme-04-dashboard-links.png)
+
+API docs (Swagger):
+
+![API docs](docs/screenshots/readme-05-api-docs.png)
+
+Same app running on Amazon EKS:
+
+![EKS dashboard](docs/screenshots/eks-03-dashboard-links.png)
