@@ -29,7 +29,8 @@ I don't leave AWS running. When I need a demo I apply Terraform, then destroy it
 | AWS | EC2, RDS, ECR, SSM, IAM, Load Balancer |
 | Infrastructure as code | Terraform |
 | CI/CD | GitHub Actions (SSH deploy to EC2) |
-| Ops extras | `/health`, Prometheus `/metrics`, JSON logs, k8s probes |
+| Monitoring | Helm, Prometheus, Grafana, ServiceMonitor |
+| Ops extras | `/health`, `/metrics`, JSON logs, k8s probes |
 
 ## Concepts and practices I learned on this project
 
@@ -43,6 +44,7 @@ I don't leave AWS running. When I need a demo I apply Terraform, then destroy it
 * Terraform remote state (S3 + lock), separate stacks, and SSM for secrets
 * Deploying with GitHub Actions over SSH
 * Kubernetes basics: Deployments, Services, ConfigMaps, Secrets, Ingress, probes
+* Installing `kube-prometheus-stack` with Helm and building Grafana panels
 * Pushing images to ECR and running the same manifests on EKS
 * Destroying cloud resources after a demo to control cost
 
@@ -72,6 +74,19 @@ Redirect stays fast because the API only publishes a small message. Workers upda
 
 **Auth flow:** register stores a bcrypt hash → login checks the hash and returns access + refresh tokens → frontend sends the access token → on 401 it calls `/refresh` instead of forcing a full login again.
 
+### Monitoring on Minikube
+
+I installed the Prometheus community `kube-prometheus-stack` chart with Helm in a separate `monitoring` namespace. It includes Prometheus, Grafana, Alertmanager, and cluster exporters.
+
+The API exposes Prometheus metrics at `/metrics`. `k8s/servicemonitor.yaml` tells Prometheus Operator to discover the `api` Service and scrape both API pods every 15 seconds.
+
+I created a Grafana dashboard named **URL Shortener API** with panels for:
+
+* API request rate
+* p95 API response time
+
+The Helm release and Grafana dashboard were configured in Minikube. The custom dashboard was not exported as JSON, so the repository stores the application metrics code and ServiceMonitor, not the full generated monitoring stack.
+
 ## How I built it (phases)
 
 I built this in steps over time, roughly in this order:
@@ -83,11 +98,12 @@ I built this in steps over time, roughly in this order:
 5. Terraform for EC2, IAM, SSM, and remote state
 6. Better Docker setup (multi-stage builds, networks, volumes)
 7. Kubernetes on Minikube (manifests, probes, JSON logging)
-8. Frontend container + `/api` reverse proxy routing
-9. RDS and clean short links (`/gh` instead of `/api/gh`)
-10. SNS/SQS click tracking (LocalStack, then real AWS)
-11. Workers + LocalStack on Minikube
-12. EKS demo (cluster, ECR, LoadBalancer), then destroy
+8. Prometheus and Grafana monitoring installed with Helm
+9. Frontend container + `/api` reverse proxy routing
+10. RDS and clean short links (`/gh` instead of `/api/gh`)
+11. SNS/SQS click tracking (LocalStack, then real AWS)
+12. Workers + LocalStack on Minikube
+13. EKS demo (cluster, ECR, LoadBalancer), then destroy
 
 Bigger checkpoints are tagged as **v0.2** (RDS + clean URLs), **v0.3** (messaging), and **v0.4** (EKS).
 
