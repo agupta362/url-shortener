@@ -6,6 +6,10 @@ You can sign up, log in, create short links (random or custom codes), and track 
 
 I don't leave AWS running. When I need a demo I apply Terraform, then destroy it when I'm done.
 
+**Repo:** [github.com/agupta362/url-shortener](https://github.com/agupta362/url-shortener)
+
+**Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
+
 ## Features
 
 * Register and login with bcrypt password hashing and JWT access + refresh tokens
@@ -292,15 +296,11 @@ Through the frontend host, use `/api/...`. Nginx or Ingress strips the `/api` pr
 
 Built as a learning project by [agupta362](https://github.com/agupta362).
 
-**Repo:** [github.com/agupta362/url-shortener](https://github.com/agupta362/url-shortener)
-
-**Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
-
 ## Screenshots
 
-Dashboard with short links (clean paths like `/k8s`, not `/api/...`):
+Dashboard with clean short links (`http://localhost:8080/py`, not `/api/...` and not a long EKS load balancer URL):
 
-![Dashboard](docs/screenshots/eks-03-dashboard-links.png)
+![Dashboard](docs/screenshots/readme-04-dashboard-links.png)
 
 API docs (Swagger):
 
