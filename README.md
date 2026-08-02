@@ -4,11 +4,7 @@ A full-stack URL shortener I built while learning backend development and DevOps
 
 You can sign up, log in, create short links (random or custom codes), and track click counts. It uses FastAPI, React, Postgres, Redis, Docker, Terraform, SNS/SQS workers, Kubernetes on Minikube, and a short Amazon EKS demo.
 
-I don't leave AWS running all the time. When I need a demo I apply Terraform, then destroy it when I'm done so it doesn't keep costing money.
-
-**Repo:** [github.com/agupta362/url-shortener](https://github.com/agupta362/url-shortener)
-
-**Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
+I don't leave AWS running. When I need a demo I apply Terraform, then destroy it when I'm done.
 
 ## Features
 
@@ -295,6 +291,10 @@ Through the frontend host, use `/api/...`. Nginx or Ingress strips the `/api` pr
 * `terraform/bootstrap` is meant to stay; `infras` and `eks` are meant to be disposable.
 
 Built as a learning project by [agupta362](https://github.com/agupta362).
+
+**Repo:** [github.com/agupta362/url-shortener](https://github.com/agupta362/url-shortener)
+
+**Releases:** [v0.2.0](https://github.com/agupta362/url-shortener/releases/tag/v0.2.0) · [v0.3.0](https://github.com/agupta362/url-shortener/releases/tag/v0.3.0) · [v0.4.0](https://github.com/agupta362/url-shortener/releases/tag/v0.4.0)
 
 ## Screenshots
 
