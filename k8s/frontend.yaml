@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: url-shortener-frontend:v2
+          image: url-shortener-frontend:v3
           imagePullPolicy: Never
           ports:
             - containerPort: 80

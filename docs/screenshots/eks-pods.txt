@@ -1,0 +1,9 @@
+﻿NAME                             READY   STATUS    RESTARTS   AGE     IP              NODE                                          NOMINATED NODE   READINESS GATES
+api-7f9fbffc9-lw2kg              1/1     Running   0          4m36s   172.31.25.55    ip-172-31-25-148.us-east-2.compute.internal   <none>           <none>
+api-7f9fbffc9-zjkhn              1/1     Running   0          4m57s   172.31.44.245   ip-172-31-39-13.us-east-2.compute.internal    <none>           <none>
+frontend-5d7f9b9d86-spkg6        1/1     Running   0          118s    172.31.46.20    ip-172-31-39-13.us-east-2.compute.internal    <none>           <none>
+localstack-cc6469d5c-2lnrv       1/1     Running   0          6m12s   172.31.17.32    ip-172-31-25-148.us-east-2.compute.internal   <none>           <none>
+logger-worker-58c4f8bddb-gjdvc   1/1     Running   0          4m55s   172.31.22.147   ip-172-31-25-148.us-east-2.compute.internal   <none>           <none>
+postgres-6dffb4c7f-5jppz         1/1     Running   0          6m12s   172.31.43.163   ip-172-31-39-13.us-east-2.compute.internal    <none>           <none>
+redis-7786bddb49-h47f7           1/1     Running   0          6m12s   172.31.18.229   ip-172-31-25-148.us-east-2.compute.internal   <none>           <none>
+worker-5dd9d94b74-9r5b5          1/1     Running   0          4m56s   172.31.23.67    ip-172-31-25-148.us-east-2.compute.internal   <none>           <none>

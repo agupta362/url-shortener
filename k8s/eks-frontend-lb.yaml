@@ -1,0 +1,19 @@
+# EKS overlay notes:
+# - Images come from ECR (set via deploy script / kustomize)
+# - Frontend Service is LoadBalancer (public URL for screenshots)
+# - Postgres/Redis/LocalStack stay in-cluster (cheaper than RDS for a short demo)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

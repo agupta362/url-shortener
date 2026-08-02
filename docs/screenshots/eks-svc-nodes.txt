@@ -1,0 +1,11 @@
+﻿NAME                 TYPE           CLUSTER-IP       EXTERNAL-IP                                                               PORT(S)          AGE
+service/api          NodePort       10.100.181.141   <none>                                                                    8000:30080/TCP   6m13s
+service/frontend     LoadBalancer   10.100.61.237    ab42cb25e65a0457c8b7fffe682b8bce-2119308678.us-east-2.elb.amazonaws.com   80:30081/TCP     6m13s
+service/kubernetes   ClusterIP      10.100.0.1       <none>                                                                    443/TCP          11m
+service/localstack   ClusterIP      10.100.95.180    <none>                                                                    4566/TCP         6m14s
+service/postgres     ClusterIP      10.100.241.216   <none>                                                                    5432/TCP         6m14s
+service/redis        ClusterIP      10.100.36.131    <none>                                                                    6379/TCP         6m14s
+
+NAME                                               STATUS   ROLES    AGE     VERSION
+node/ip-172-31-25-148.us-east-2.compute.internal   Ready    <none>   8m39s   v1.31.14-eks-bca9cf6
+node/ip-172-31-39-13.us-east-2.compute.internal    Ready    <none>   8m41s   v1.31.14-eks-bca9cf6
